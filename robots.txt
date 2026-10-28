@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lemonadev03.github.io/rene-shooter/sitemap.xml

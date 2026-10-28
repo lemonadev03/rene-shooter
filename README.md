@@ -1,6 +1,12 @@
 # RENE SHOOTER — Beach Soak Showdown
 
+![RENE SHOOTER key art — Rene in a #2 jersey soaking fire monsters with a super soaker on a tropical beach](assets/og-art.jpg)
+
+**▶ Play it live: https://lemonadev03.github.io/rene-shooter/**
+
 A third-person beach shooter built with Three.js. You play Rene: a 3D model based on the Ateneo #2 photo (white "ATENEO" #2 jersey with "RENE" on the back, blue shorts, grey knee brace on the left leg, white shoes), armed with a super soaker, fighting waves of fire monsters on a beach.
+
+Powerups drop around the beach (⚡ Rapid Soak, 💥 Mega Soak, 👟 Speed Soda, ❤️ +40 HP, 🧊 Deep Freeze). Refill at the glowing 💦 REFILL buckets, the wandering inflatable pools, or the ocean.
 
 ## Run
 

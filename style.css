@@ -14,6 +14,7 @@
 .logo{font-weight:1000;font-style:italic;font-size:26px;letter-spacing:-1px}.logo b{color:#ffe23a}
 #wavePill{display:inline-block;margin-top:6px;background:#1046b8;border:2px solid #fff;padding:5px 12px;border-radius:999px;font-weight:900;font-size:13px}
 #enemiesLeft{display:inline-block;margin-left:8px;background:#0006;padding:6px 10px;border-radius:999px;font-weight:800;font-size:13px}
+#powerPill{margin-top:6px;background:#7c2d12;border:2px solid #ffd23a;color:#ffe9a8;padding:5px 12px;border-radius:999px;font-weight:900;font-size:13px;width:fit-content}
 .top-right{position:absolute;top:16px;right:20px;text-align:right;text-shadow:0 2px 6px #0006}
 #score{font-size:38px;font-weight:1000;line-height:1}.label{font-size:11px;letter-spacing:2px;opacity:.85;font-weight:800}
 #combo{color:#ffe23a;font-weight:1000;font-size:18px;height:22px}
@@ -48,6 +49,9 @@
 .controls{display:grid;grid-template-columns:repeat(4,auto);gap:8px 16px;margin-top:20px;font-size:12px;font-weight:700;text-shadow:0 1px 4px #000}
 kbd{background:#fff;color:#123;padding:2px 6px;border-radius:5px;font-family:inherit;box-shadow:0 2px 0 #999}
 .foot{margin-top:14px;font-size:12px;opacity:.85;font-weight:700}
+.shareRow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+.shareBtn{pointer-events:auto;background:#0b3d91cc;color:#fff;border:2px solid #fff9;padding:9px 16px;border-radius:999px;font-weight:900;font-size:13px;cursor:pointer;text-decoration:none;font-family:inherit}
+.shareBtn:hover{background:#1046b8;transform:scale(1.04)}
 .stats{display:flex;gap:14px;margin:16px}.stats div{background:#0007;border:2px solid #fff;border-radius:14px;padding:14px 20px}.stats b{font-size:32px;display:block}.stats span{font-size:11px;letter-spacing:2px;opacity:.85}
 #err{position:fixed;bottom:6px;left:6px;z-index:99;color:#fecaca;font-size:12px;pointer-events:none}
 @media(max-width:640px){.controls{grid-template-columns:repeat(2,auto)}#banner h2{font-size:40px}.bottom-left{width:190px}.slot{width:44px;height:44px}}

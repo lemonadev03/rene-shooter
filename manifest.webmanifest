@@ -1,0 +1,22 @@
+{
+  "name": "RENE SHOOTER — Beach Soak Showdown",
+  "short_name": "RENE SHOOTER",
+  "description": "Third-person beach shooter in the browser: Rene (#2 in blue) and his super soaker vs waves of fire monsters. Powerups, wandering pools, glowing refill buckets.",
+  "id": "/rene-shooter/",
+  "start_url": "https://lemonadev03.github.io/rene-shooter/",
+  "scope": "https://lemonadev03.github.io/rene-shooter/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#7ed6f2",
+  "theme_color": "#0284c7",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-art.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "assets/og-art.jpg", "sizes": "1200x630", "type": "image/jpeg", "form_factor": "wide", "label": "RENE SHOOTER key art — Rene soaking fire monsters on the beach" },
+    { "src": "assets/og.jpg", "sizes": "1200x630", "type": "image/jpeg", "form_factor": "wide", "label": "RENE SHOOTER gameplay — title screen" }
+  ]
+}

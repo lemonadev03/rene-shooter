@@ -83,9 +83,66 @@ function umbrella(x,z,c){const g=new THREE.Group();g.position.set(x,0,z);const p
 // rocks + crates
 [[ -34,10],[36,12],[-6,-24],[8,-8]].forEach(([x,z])=>{const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,1.3)),mat(0x8d99ae,.9));r.position.set(x,.5,z);r.castShadow=true;r.receiveShadow=true;scene.add(r);colliders.push({x,z,r:1.1});});
 [[4,-20],[5.2,-20],[-22,-26]].forEach(([x,z])=>{scene.add(box(1,1,1,mat(0xb08954,.85),x,.5,z));colliders.push({x,z,r:.8});});
-// inflatable refill stations (buckets)
-const refillSpots=[];
-[[-9,13],[11,13.5],[0,-28]].forEach(([x,z])=>{const b=cyl(.55,.42,.7,mat(0x2196f3,.4),x,.35,z);scene.add(b);const w=cyl(.48,.48,.06,mat(0x7dd3fc,.15),x,.72,z);scene.add(w);refillSpots.push({x,z,r:3.2});});
+// ===== refill stations: big loud buckets + wandering pools =====
+const refillSpots=[]; // {x,z,r} — pools mutate x/z as they wander
+const beaconAnims=[]; // {mat,sprite,baseY,ring,phase}
+function makeLabel(main,sub='',scale=1){
+  const tex=canvasTex(512,160,(g,w,h)=>{
+    g.clearRect(0,0,w,h);
+    g.fillStyle='rgba(4,47,110,.88)'; g.strokeStyle='#fff'; g.lineWidth=6;
+    g.beginPath(); g.roundRect(14,14,w-28,h-28,42); g.fill(); g.stroke();
+    g.fillStyle='#fff'; g.textAlign='center'; g.font='900 62px Arial'; g.fillText(main,w/2,sub?84:102);
+    if(sub){g.font='800 36px Arial'; g.fillStyle='#7dd3fc'; g.fillText(sub,w/2,132);}
+  });
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
+  sp.scale.set(3.4*scale,1.06*scale,1); return sp;
+}
+function addBeacon(parent,x,z,{label,sub='',color=0x38bdf8,h=7,scale=1}={}){
+  const bm=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.20,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.85,.85,h,18,1,true),bm); beam.position.set(x,h/2,z); parent.add(beam);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(1.7,2.05,36),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,depthWrite:false,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2; ring.position.set(x,.05,z); parent.add(ring);
+  const sp=makeLabel(label,sub,scale); sp.position.set(x,2.7,z); parent.add(sp);
+  const a={mat:bm,sprite:sp,baseY:2.7,ring,phase:rand(0,6)}; beaconAnims.push(a); return a;
+}
+function buildBucket(x,z){
+  const g=new THREE.Group(); scene.add(g);
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(1.05,.14,10,28),mat(0xffd23a,.35)); rim.rotation.x=Math.PI/2; rim.position.set(x,1.24,z); rim.castShadow=true; g.add(rim);
+  g.add(cyl(1.02,.78,1.25,mat(0x0284c7,.35),x,.62,z,22));
+  g.add(cyl(.94,.94,.08,mat(0x7dd3fc,.15,0,{emissive:0x38bdf8,emissiveIntensity:.5}),x,1.26,z,22));
+  g.add(box(.16,1.0,.16,mat(0xffffff,.6),x-1.05,.9,z),box(.16,1.0,.16,mat(0xffffff,.6),x+1.05,.9,z));
+  addBeacon(g,x,z,{label:'💦 REFILL',sub:'stand here · or hold R',color:0x38bdf8,h:8,scale:1});
+  refillSpots.push({x,z,r:3.4,kind:'bucket'});
+}
+[[-9,13],[11,13.5],[0,-28]].forEach(([x,z])=>buildBucket(x,z));
+// ---- moving water pools: inflatable kiddie pools that wander the beach ----
+const pools=[];
+function buildPool(x,z,ringCol){
+  const g=new THREE.Group(); g.position.set(x,0,z); scene.add(g);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.9,.42,12,30),mat(ringCol,.35)); ring.rotation.x=Math.PI/2; ring.position.y=.34; ring.castShadow=true; g.add(ring);
+  const ring2=new THREE.Mesh(new THREE.TorusGeometry(1.85,.30,12,30),mat(0xffffff,.4)); ring2.rotation.x=Math.PI/2; ring2.position.y=.62; g.add(ring2);
+  const water=new THREE.Mesh(new THREE.CircleGeometry(1.72,28),new THREE.MeshStandardMaterial({color:0x29b6e8,roughness:.12,transparent:true,opacity:.92,emissive:0x0a4a66,emissiveIntensity:.45}));
+  water.rotation.x=-Math.PI/2; water.position.y=.46; g.add(water);
+  const ball=sph(.3,mat(0xffd23a,.3),.7,.62,.4); g.add(ball);
+  addBeacon(g,0,0,{label:'💦 POOL',sub:'it wanders · hop in',color:0x2dd4bf,h:6,scale:.85});
+  const spot={x,z,r:3.0,kind:'pool'}; refillSpots.push(spot);
+  pools.push({g,spot,water,ball,tx:x,tz:z,wait:rand(1,4),phase:rand(0,6)});
+}
+buildPool(-16,-4,0xff4d8d); buildPool(19,-12,0x00b4d8);
+function updatePoolsAndBeacons(dt,t){
+  for(const a of beaconAnims){a.mat.opacity=.14+Math.sin(t*2.6+a.phase)*.07; a.sprite.position.y=a.baseY+Math.sin(t*2+a.phase)*.16; const s=1+Math.sin(t*2.2+a.phase)*.13; a.ring.scale.set(s,s,1); a.ring.material.opacity=.55+Math.sin(t*2.2+a.phase)*.3;}
+  for(const p of pools){
+    p.phase+=dt;
+    const dx=p.tx-p.g.position.x, dz=p.tz-p.g.position.z, d=Math.hypot(dx,dz);
+    if(p.wait>0){p.wait-=dt;}
+    else if(d<1){p.wait=rand(2.5,6); p.tx=clamp(p.g.position.x+rand(-22,22),-42,42); p.tz=clamp(p.g.position.z+rand(-16,16),-34,12);}
+    else {const sp=1.35*dt; p.g.position.x+=dx/d*sp; p.g.position.z+=dz/d*sp; p.g.rotation.y+=dt*.35;}
+    p.g.position.y=Math.abs(Math.sin(p.phase*2.4))*.07;
+    p.water.position.y=.46+Math.sin(p.phase*3.1)*.035;
+    p.ball.position.y=.62+Math.sin(p.phase*2.7)*.06; p.ball.rotation.y+=dt;
+    p.spot.x=p.g.position.x; p.spot.z=p.g.position.z;
+  }
+}
 
 // ===== PLAYER — modelled on the photo: Ateneo #2 =====
 // white jersey blue trim "ATENEO" + 2, blue shorts, grey brace on LEFT knee, white shoes, short black hair
@@ -229,7 +286,7 @@ function beep(f,d,type='square',vol=.06,slide=0){try{const a=ac(),o=a.createOsci
 function noiseHit(d=.18,vol=.12,fc=2500){try{const a=ac(),len=a.sampleRate*d,buf=a.createBuffer(1,len,a.sampleRate),ch=buf.getChannelData(0);for(let i=0;i<len;i++)ch[i]=Math.random()*2-1;const s=a.createBufferSource();s.buffer=buf;const f=a.createBiquadFilter();f.type='highpass';f.frequency.value=fc;const g=a.createGain();g.gain.setValueAtTime(vol,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d);s.connect(f);f.connect(g);g.connect(a.destination);s.start();}catch(e){}}
 
 // ===== game state =====
-const S={mode:'title',hp:100,water:100,score:0,kills:0,wave:0,combo:0,comboT:0,weapon:1,shake:0,time:0};
+const S={mode:'title',hp:100,water:100,score:0,kills:0,wave:0,combo:0,comboT:0,weapon:1,shake:0,time:0,pu:{rapid:0,power:0,speed:0,freeze:0},puSpawnT:6};
 const player={pos:V3(0,0,2),vel:V3(),yaw:Math.PI,vy:0,onGround:true,jumps:0,runPhase:0,speedNow:0,sliding:0,aiming:false,firing:false,fireCd:0,hurtCd:0};
 let camYaw=Math.PI, camPitch=-.18; // camera behind player looking toward -? player faces direction of camYaw
 const enemies=[], bullets=[], fireballs=[];
@@ -325,21 +382,81 @@ function startGame(){
   // clear
   enemies.forEach(e=>scene.remove(e.g)); enemies.length=0;
   bullets.forEach(b=>_freeMesh(_bPool,b.m)); bullets.length=0; fireballs.forEach(b=>_freeMesh(_fPool,b.m)); fireballs.length=0;
-  Object.assign(S,{mode:'play',hp:100,water:100,score:0,kills:0,wave:0,combo:0});
+  powerups.forEach(p=>scene.remove(p.g)); powerups.length=0;
+  Object.assign(S,{mode:'play',hp:100,water:100,score:0,kills:0,wave:0,combo:0,pu:{rapid:0,power:0,speed:0,freeze:0},puSpawnT:5});
   player.pos.set(0,0,4); player.vel.set(0,0,0); player.vy=0; camYaw=Math.PI; camPitch=-.16; P.root.rotation.y=Math.PI; camera.position.set(1.2,2.4,10);
   $('title').classList.add('hidden'); $('end').classList.add('hidden'); $('hud').classList.remove('hidden');
   try{canvas.requestPointerLock?.();}catch(e){}
   ac(); spawnWave(1);
 }
+// ===== POWERUPS =====
+const PU_TYPES=[
+  {k:'rapid', emoji:'⚡', name:'RAPID SOAK', col:0xffd23a, dur:10},
+  {k:'power', emoji:'💥', name:'MEGA SOAK',  col:0xff7b1c, dur:12},
+  {k:'speed', emoji:'👟', name:'SPEED SODA', col:0x2dd4bf, dur:10},
+  {k:'heal',  emoji:'❤️', name:'+40 HP',     col:0xef4444, dur:0},
+  {k:'freeze',emoji:'🧊', name:'DEEP FREEZE',col:0x7dd3fc, dur:6},
+];
+const powerups=[];
+function spawnPowerup(){
+  const t=PU_TYPES[Math.floor(Math.random()*PU_TYPES.length)];
+  let x=0,z=0,tries=0;
+  do{x=rand(-38,38);z=rand(-32,10);tries++;}while(Math.hypot(x-player.pos.x,z-player.pos.z)<7&&tries<8);
+  const g=new THREE.Group(); g.position.set(x,0,z); scene.add(g);
+  const orb=new THREE.Mesh(new THREE.IcosahedronGeometry(.42,0),new THREE.MeshStandardMaterial({color:t.col,emissive:t.col,emissiveIntensity:1.1,roughness:.25}));
+  orb.position.y=1.05; orb.castShadow=true; g.add(orb);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.62,.06,8,24),new THREE.MeshBasicMaterial({color:t.col,transparent:true,opacity:.85}));
+  ring.position.y=1.05; ring.rotation.x=Math.PI/2.4; g.add(ring);
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,4.5,12,1,true),new THREE.MeshBasicMaterial({color:t.col,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending}));
+  beam.position.y=2.25; g.add(beam);
+  const label=makeLabel(`${t.emoji} ${t.name}`,'',.62); label.position.y=2.05; g.add(label);
+  const blob2=new THREE.Mesh(new THREE.CircleGeometry(.8,20),new THREE.MeshBasicMaterial({color:t.col,transparent:true,opacity:.35,depthWrite:false}));
+  blob2.rotation.x=-Math.PI/2; blob2.position.y=.04; g.add(blob2);
+  powerups.push({g,orb,ring,t,life:26,phase:rand(0,6)});
+  spawnP(g.position.clone().setY(1),16,t.col,2,.6,0,2.2);
+}
+function applyPowerup(p){
+  const t=p.t;
+  if(t.k==='heal'){S.hp=Math.min(100,S.hp+40); feed('❤️ +40 HP');}
+  else {S.pu[t.k]=t.dur; feed(`${t.emoji} ${t.name}! ${t.dur}s`);}
+  S.score+=25;
+  spawnP(p.g.position.clone().setY(1.1),26,t.col,3,.7,-1,3);
+  beep(660,.09,'square',.06); setTimeout(()=>beep(880,.09,'square',.06),80); setTimeout(()=>beep(1180,.12,'square',.06),160);
+}
+function updatePowerups(dt){
+  for(const k in S.pu) if(S.pu[k]>0)S.pu[k]=Math.max(0,S.pu[k]-dt);
+  if(S.mode==='play'){S.puSpawnT-=dt; if(S.puSpawnT<=0){S.puSpawnT=rand(10,15); if(powerups.length<2)spawnPowerup();}}
+  for(let i=powerups.length-1;i>=0;i--){const p=powerups[i]; p.life-=dt; p.phase+=dt;
+    p.orb.rotation.y+=dt*2.2; p.orb.rotation.x+=dt*.7; p.orb.position.y=1.05+Math.sin(p.phase*2.6)*.16;
+    p.ring.rotation.z+=dt*1.6;
+    p.g.visible=!(p.life<5&&Math.sin(p.phase*10)>0); // blink before despawn
+    if(p.life<=0){scene.remove(p.g);powerups.splice(i,1);continue;}
+    if(S.mode==='play'){
+      const d=Math.hypot(player.pos.x-p.g.position.x,player.pos.z-p.g.position.z);
+      if(d<1.5){applyPowerup(p); scene.remove(p.g); powerups.splice(i,1);}
+    }
+  }
+}
 $('playBtn').addEventListener('click',startGame);
 $('againBtn').addEventListener('click',startGame);
+// share (Web Share API with clipboard fallback)
+async function shareGame(btn,withScore){
+  const url='https://lemonadev03.github.io/rene-shooter/';
+  const text=withScore?`I scored ${S.score.toLocaleString()} on RENE SHOOTER 💦🔥 (Wave ${S.wave}, ${S.kills} soaked) — beat that:`:'RENE SHOOTER 💦🔥 third-person beach shooter in the browser — soak the fire monsters!';
+  try{
+    if(navigator.share){await navigator.share({title:'RENE SHOOTER — Beach Soak Showdown',text,url});}
+    else{await navigator.clipboard.writeText(text+' '+url); const o=btn.textContent; btn.textContent='✓ Link copied!'; setTimeout(()=>btn.textContent=o,1800);}
+  }catch(e){/* dismissed */}
+}
+document.querySelectorAll('.shareBtn').forEach(b=>{if(b.tagName==='BUTTON'&&!b.id)b.addEventListener('click',()=>shareGame(b,false));});
+$('shareScore')?.addEventListener('click',e=>shareGame(e.currentTarget,true));
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 
 // ===== shooting =====
 const _tip=new THREE.Vector3(), _dir=new THREE.Vector3(), _target=new THREE.Vector3();
 const _v1=new THREE.Vector3(), _v2=new THREE.Vector3(), _v3=new THREE.Vector3(); let _frame=0;
 const _UP=new THREE.Vector3(0,1,0), _desired=new THREE.Vector3(), _look=new THREE.Vector3();
-const EL={hpBar:$('hpBar'),hpTxt:$('hpTxt'),waterBar:$('waterBar'),waterTxt:$('waterTxt'),score:$('score'),combo:$('combo'),left:$('enemiesLeft'),hint:$('hint')};
+const EL={hpBar:$('hpBar'),hpTxt:$('hpTxt'),waterBar:$('waterBar'),waterTxt:$('waterTxt'),score:$('score'),combo:$('combo'),left:$('enemiesLeft'),hint:$('hint'),power:$('powerPill')};
 let _hudFrame=-9, _ftAcc=0, _ftN=0;
 function shoot(dt){
   player.fireCd-=dt;
@@ -352,19 +469,20 @@ function shoot(dt){
   P.tip.getWorldPosition(_tip);
   _target.copy(camera.position).addScaledVector(_dir,42);
   _dir.copy(_target).sub(_tip).normalize();
+  const rapid=S.pu.rapid>0, mega=S.pu.power>0;
   if(S.weapon===1){
-    player.fireCd=.055; S.water=Math.max(0,S.water-1.1);
-    const m=_getMesh(_bPool,bulletGeo,bulletMat); m.scale.setScalar(1); m.position.copy(_tip);
+    player.fireCd=rapid?.028:.055; S.water=Math.max(0,S.water-(rapid?.55:1.1));
+    const m=_getMesh(_bPool,bulletGeo,bulletMat); m.scale.setScalar(mega?1.5:1); m.position.copy(_tip);
     const spread=player.aiming?.012:.035;
     const v=_dir.clone(); v.x+=rand(-spread,spread);v.y+=rand(-spread,spread);v.z+=rand(-spread,spread);v.normalize().multiplyScalar(46);
-    bullets.push({m,v,life:1.35,dmg:7,r:.16});
+    bullets.push({m,v,life:1.35,dmg:mega?14:7,r:mega?.24:.16});
     spawnP(_tip,2,0x7dd3fc,1,.25,-2,.5);
     if(Math.random()<.35)noiseHit(.07,.035,3500);
   }else{
-    player.fireCd=.42; S.water=Math.max(0,S.water-7); S.shake=Math.max(S.shake,.12);
-    for(let i=0;i<5;i++){const m=_getMesh(_bPool,bulletGeo,bulletMat);m.scale.setScalar(1.9);m.position.copy(_tip);
+    player.fireCd=rapid?.22:.42; S.water=Math.max(0,S.water-(rapid?3.5:7)); S.shake=Math.max(S.shake,.12);
+    for(let i=0;i<5;i++){const m=_getMesh(_bPool,bulletGeo,bulletMat);m.scale.setScalar(mega?2.6:1.9);m.position.copy(_tip);
       const v=_dir.clone();v.x+=rand(-.07,.07);v.y+=rand(-.05,.07);v.z+=rand(-.07,.07);v.normalize().multiplyScalar(30);
-      bullets.push({m,v,life:1.1,dmg:16,r:.3});}
+      bullets.push({m,v,life:1.1,dmg:mega?32:16,r:mega?.42:.3});}
     noiseHit(.16,.1,1800); beep(220,.1,'sine',.05,-100);
   }
 }
@@ -384,6 +502,7 @@ function animate(){
   op.needsUpdate=true; // normals left as-is: flat-lit water, skips a full recompute every frame
   foams.forEach((f,i)=>{f.position.z=17.2+i*2.1+Math.sin(t*1.1+i)*0.9;f.material.opacity=.5+Math.sin(t*1.1+i)*.25;});
   clouds.forEach((c,i)=>{c.position.x+=dt*(.4+i*.07); if(c.position.x>110)c.position.x=-110;});
+  updatePoolsAndBeacons(dt,t);
   updateParts(dt);
 
   if(S.mode==='title'||S.mode==='end'){
@@ -412,7 +531,7 @@ function animate(){
   // slide: crouch while sprinting & grounded
   if(crouch&&sprint&&player.onGround&&player.sliding<=0&&player.speedNow>6){player.sliding=.65; spawnP(player.pos.clone().add(V3(0,.15,0)),12,0xf0d488,2,.5,-3,1); beep(200,.15,'sine',.04,-80);}
   if(player.sliding>0)player.sliding-=dt;
-  let maxSpeed=player.aiming?3.4:crouch&&player.sliding<=0?2.6:sprint?9.2:5.6;
+  let maxSpeed=(player.aiming?3.4:crouch&&player.sliding<=0?2.6:sprint?9.2:5.6)*(S.pu.speed>0?1.4:1);
   if(player.sliding>0)maxSpeed=11;
   const fwd=forwardVec();
   const rightV=new THREE.Vector3().crossVectors(fwd,new THREE.Vector3(0,1,0)).normalize();
@@ -459,15 +578,20 @@ function animate(){
     P.gun.rotation.x=Math.PI/2-.45; P.gun.position.set(0,-.36,.02);
   }
   P.headG.rotation.x=camPitch*.35;
-  // refill
+  // refill: ocean, buckets and wandering pools all fill you up just by standing in them; R fills faster
   const inOcean=player.pos.z>15.5;
-  const nearRefill=inOcean||refillSpots.some(s=>Math.hypot(player.pos.x-s.x,player.pos.z-s.z)<s.r);
-  if(inOcean){S.water=Math.min(100,S.water+38*dt); if(Math.random()<.2)spawnP(player.pos.clone().add(V3(rand(-.4,.4),.15,rand(-.4,.4))),2,0x7dd3fc,1,.4,-3,1.4);}
-  if(keys.KeyR&&nearRefill&&S.water<100){S.water=Math.min(100,S.water+70*dt); spawnP(player.pos.clone().add(V3(0,1.2,0)),3,0x38bdf8,1.4,.4,-4,1);}
+  const spot=refillSpots.find(s=>Math.hypot(player.pos.x-s.x,player.pos.z-s.z)<s.r);
+  if(inOcean||spot){
+    const rate=(spot?52:38)+(keys.KeyR?45:0);
+    if(S.water<100){S.water=Math.min(100,S.water+rate*dt);
+      if(Math.random()<.35){_v3.set(player.pos.x+rand(-.5,.5),.3,player.pos.z+rand(-.5,.5));spawnP(_v3,2,0x7dd3fc,1.2,.45,-3,1.8);}
+      if(keys.KeyR&&Math.random()<.3)beep(rand(700,1100),.05,'sine',.02);}
+  }
   EL.hint.classList.toggle('show',S.water<28);
   // slow hp regen after no hurt
   player.hurtCd-=dt; if(player.hurtCd<-4&&S.hp<100)S.hp=Math.min(100,S.hp+4*dt);
   shoot(dt);
+  updatePowerups(dt);
 
   // --- bullets ---
   _frame++;
@@ -488,7 +612,7 @@ function animate(){
     e.phase+=dt*6; e.wet=Math.max(0,e.wet-dt*1.2); e.atkCd-=dt; e.shootCd-=dt;
     _v1.copy(player.pos).sub(e.pos); _v1.y=0; const dist=_v1.length(); const dir=_v1.normalize();
     const stopAt=e.kind===2?11:1.35*e.s;
-    if(dist>stopAt){e.pos.addScaledVector(dir,e.speed*(dist>25?1.7:1)*(1-e.wet*.35)*dt);} // catch-up speed so stragglers always reach the fight
+    if(dist>stopAt){e.pos.addScaledVector(dir,e.speed*(dist>25?1.7:1)*(1-e.wet*.35)*(S.pu.freeze>0?.42:1)*dt);} // catch-up speed so stragglers always reach the fight; DEEP FREEZE slows them
     // separation (alloc-free)
     for(const o of enemies){if(o===e||o.dead)continue;_v2.copy(e.pos).sub(o.pos);_v2.y=0;const d2=_v2.lengthSq();if(d2<1.44&&d2>0.0001){const d=Math.sqrt(d2);e.pos.addScaledVector(_v2.normalize(),(1.2-d)*dt*2);}}
     e.pos.x=clamp(e.pos.x,-53,53); e.pos.z=clamp(e.pos.z,-41,20);
@@ -546,6 +670,8 @@ function animate(){
     EL.waterBar.style.width=S.water+'%'; EL.waterTxt.textContent=Math.ceil(S.water)+'%';
     EL.score.textContent=S.score.toLocaleString();
     EL.left.textContent='🔥 '+expectedAlive+' left';
+    const act=PU_TYPES.filter(t=>t.dur>0&&S.pu[t.k]>0).map(t=>`${t.emoji} ${t.name} ${Math.ceil(S.pu[t.k])}s`);
+    EL.power.classList.toggle('hidden',!act.length); if(act.length)EL.power.textContent=act.join('  ·  ');
   }
 
   // adaptive resolution: if sustained frame time is slow, step pixel ratio down (and back up when fast)
