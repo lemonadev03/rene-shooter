@@ -39,19 +39,71 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(260,24,16),new THREE.ShaderMat
 // ===== world: beach =====
 const colliders=[]; // {x,z,r}
 const sandTex=canvasTex(512,512,(g,w,h)=>{g.fillStyle='#f0d488';g.fillRect(0,0,w,h);for(let i=0;i<9000;i++){g.fillStyle=['#e8c975','#f7e3a0','#d9b95f','#fff3c4'][i%4];g.fillRect(Math.random()*w,Math.random()*h,2,2);}});
-sandTex.wrapS=sandTex.wrapT=THREE.RepeatWrapping; sandTex.repeat.set(18,12);
-const sand=new THREE.Mesh(new THREE.PlaneGeometry(340,110),new THREE.MeshStandardMaterial({map:sandTex,roughness:.95}));
-sand.rotation.x=-Math.PI/2; sand.position.set(0,0,-12); sand.receiveShadow=true; scene.add(sand);
+sandTex.wrapS=sandTex.wrapT=THREE.RepeatWrapping; sandTex.repeat.set(20,9);
+// dry sand ends AT the shoreline (z=19) — it used to run 24m out over the water, which read as desert
+const sand=new THREE.Mesh(new THREE.PlaneGeometry(340,80),new THREE.MeshStandardMaterial({map:sandTex,roughness:.95}));
+sand.rotation.x=-Math.PI/2; sand.position.set(0,0,-21); sand.receiveShadow=true; scene.add(sand);
+// wet sand band where waves reach + shallow shelf under the water
+const wet=new THREE.Mesh(new THREE.PlaneGeometry(340,10),new THREE.MeshStandardMaterial({color:0xd8b26e,roughness:.45}));
+wet.rotation.x=-Math.PI/2; wet.position.set(0,.012,15); wet.receiveShadow=true; scene.add(wet);
+const shelf=new THREE.Mesh(new THREE.PlaneGeometry(340,34),new THREE.MeshStandardMaterial({color:0xc7a15e,roughness:.8}));
+shelf.rotation.x=-Math.PI/2; shelf.position.set(0,-.32,33); scene.add(shelf);
 // ocean
-const oceanMat=new THREE.MeshStandardMaterial({color:0x1598c8,roughness:.18,metalness:.05,transparent:true,opacity:.92,emissive:0x073a55,emissiveIntensity:.35});
-const ocean=new THREE.Mesh(new THREE.PlaneGeometry(300,90,36,14),oceanMat);
-ocean.rotation.x=-Math.PI/2; ocean.position.set(0,-.18,58); scene.add(ocean);
+const oceanMat=new THREE.MeshStandardMaterial({color:0x1193c9,roughness:.16,metalness:.05,transparent:true,opacity:.88,emissive:0x073a55,emissiveIntensity:.35});
+const ocean=new THREE.Mesh(new THREE.PlaneGeometry(340,96,36,14),oceanMat);
+ocean.rotation.x=-Math.PI/2; ocean.position.set(0,-.14,62); scene.add(ocean);
 const oceanBase=ocean.geometry.attributes.position.array.slice();
-// foam shoreline strips
+// wavy foam lines crawling up the shore
 const foams=[];
-for(let i=0;i<3;i++){const f=new THREE.Mesh(new THREE.PlaneGeometry(150,1.6),mat(0xffffff,.4,0,{transparent:true,opacity:.75}));f.rotation.x=-Math.PI/2;f.position.set(0,.02,17.5+i*2.2);scene.add(f);foams.push(f);}
-// dunes at back
+for(let i=0;i<4;i++){
+  const geo=new THREE.PlaneGeometry(340,1.5,72,1); const gp=geo.attributes.position;
+  for(let v=0;v<gp.count;v++){const px=gp.getX(v); gp.setY(v,gp.getY(v)+Math.sin(px*.16+i*2)*.5+Math.sin(px*.045+i)*.8);}
+  geo.computeVertexNormals();
+  const f=new THREE.Mesh(geo,mat(0xffffff,.35,0,{transparent:true,opacity:.8})); f.rotation.x=-Math.PI/2;
+  f.position.set(0,.03+i*.004,16.8+i*1.9); f.userData.baseZ=16.8+i*1.9; scene.add(f); foams.push(f);
+}
+// rolling wave bands out at sea
+const waveBands=[];
+for(let i=0;i<5;i++){const w=new THREE.Mesh(new THREE.PlaneGeometry(340,.9),mat(0xffffff,.4,0,{transparent:true,opacity:.4}));w.rotation.x=-Math.PI/2;w.position.set(0,.02,26+i*11);scene.add(w);waveBands.push(w);}
+// sand detail: tonal patches, shells, starfish
+{const patchCols=[0xe6c87a,0xf5df9e,0xdec084];
+ for(let i=0;i<26;i++){const p=new THREE.Mesh(new THREE.CircleGeometry(rand(1.2,3.4),18),new THREE.MeshStandardMaterial({color:patchCols[i%3],roughness:1,transparent:true,opacity:.5}));p.rotation.x=-Math.PI/2;p.rotation.z=rand(0,3);p.scale.y=rand(.5,.8);p.position.set(rand(-48,48),.008,rand(-36,13));p.receiveShadow=true;scene.add(p);}
+ const shellCols=[0xfff1e6,0xffb4a2,0xf9c6d3,0xffffff];
+ for(let i=0;i<34;i++){const s=sph(rand(.09,.17),mat(shellCols[i%4],.5),rand(-48,48),.05,rand(-34,15),10,8);s.scale.y=.45;s.castShadow=false;scene.add(s);}
+ for(let i=0;i<7;i++){const st=new THREE.Group();st.position.set(rand(-40,40),.06,rand(-30,13));st.rotation.y=rand(0,3);for(let a=0;a<5;a++){const arm=new THREE.Mesh(new THREE.ConeGeometry(.09,.42,6),mat(0xff8c42,.7));arm.rotation.z=Math.PI/2;arm.rotation.y=-a/5*Math.PI*2;arm.translateX(.18);arm.scale.y=.5;st.add(arm);}scene.add(st);}
+}
+// dune mounds + grass tufts along the back (north)
 for(let i=0;i<9;i++){const d=sph(rand(4,8),mat(0xeccf7d,.95),-55+i*13+rand(-2,2),-1.5,-46+rand(-2,2));d.scale.y=.38;d.castShadow=false;scene.add(d);}
+{const gm=mat(0x4c9a4c,.85);
+ for(let i=0;i<46;i++){const x=rand(-58,58),z=rand(-50,-33);for(let j=0;j<3;j++){const c=new THREE.Mesh(new THREE.ConeGeometry(.07,rand(.5,.95),5),gm);c.position.set(x+rand(-.25,.25),.3,z+rand(-.25,.25));c.rotation.set(rand(-.3,.3),0,rand(-.3,.3));scene.add(c);}}
+}
+// bonfire pits on the shore — where the fire monsters pour in from
+const bonfireFlames=[];
+function bonfire(x,z){
+  const g=new THREE.Group(); g.position.set(x,0,z); scene.add(g);
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const s=new THREE.Mesh(new THREE.DodecahedronGeometry(.28),mat(0x8d99ae,.9));s.position.set(Math.cos(a)*1.05,.14,Math.sin(a)*1.05);s.castShadow=true;g.add(s);}
+  for(let i=0;i<3;i++){const log=cyl(.09,.09,1.3,mat(0x5b3a22,.9),0,.18,0,8);log.rotation.z=Math.PI/2.3;log.rotation.y=i*1.05;g.add(log);}
+  const fm=[new THREE.MeshStandardMaterial({color:0xff6a00,emissive:0xff5500,emissiveIntensity:2,roughness:.3,transparent:true,opacity:.95}),new THREE.MeshStandardMaterial({color:0xffd23a,emissive:0xffaa00,emissiveIntensity:2,roughness:.3,transparent:true,opacity:.9})];
+  for(let i=0;i<4;i++){const f=new THREE.Mesh(new THREE.ConeGeometry(.3,rand(.9,1.3),7),fm[i%2]);f.position.set(rand(-.3,.3),.75,rand(-.3,.3));g.add(f);bonfireFlames.push({f,ph:rand(0,6)});}
+  colliders.push({x,z,r:.95});
+}
+[-36,-18,-2,18,36].forEach(x=>bonfire(x,11.5));
+// wooden pier reaching into the sea (east side)
+{const g=new THREE.Group(); g.position.set(38,0,26); const wm=mat(0x9a7448,.85), dm=mat(0xb08954,.85);
+ for(let i=0;i<9;i++){g.add(box(3.4,.18,1.1,dm,0,1.15,-12+i*3));[-1.5,1.5].forEach(px=>g.add(cyl(.14,.14,2.4,wm,px,.2,-12+i*3,8)));}
+ [-1.65,1.65].forEach(px=>{g.add(box(.09,.09,25,wm,px,2.05,0));for(let i=0;i<7;i++)g.add(box(.08,.95,.08,wm,px,1.6,-11+i*3.7));});
+ scene.add(g);}
+// sailboats drifting on the horizon
+const sailboats=[];
+function sailboat(x,z,sailCol,spd){
+  const g=new THREE.Group(); g.position.set(x,0,z);
+  g.add(box(2.6,.5,.8,mat(0xffffff,.5),0,.15,0));
+  const shape=new THREE.Shape(); shape.moveTo(0,0); shape.lineTo(0,2.6); shape.lineTo(1.5,.15); shape.lineTo(0,0);
+  const sail=new THREE.Mesh(new THREE.ShapeGeometry(shape),mat(sailCol,.6,0,{side:THREE.DoubleSide})); sail.position.set(-.1,.4,0); g.add(sail);
+  g.add(cyl(.04,.04,2.9,mat(0x8a6242,.8),-.1,1.8,0,6));
+  g.scale.setScalar(1.6); scene.add(g); sailboats.push({g,spd,ph:rand(0,6)});
+}
+sailboat(-55,72,0xff4d6d,.55); sailboat(30,88,0xffd23a,-.4); sailboat(75,64,0xffffff,.33);
 // distant islands
 [[-75,95],[55,115],[95,80]].forEach(([x,z])=>{const isl=new THREE.Mesh(new THREE.ConeGeometry(rand(9,15),rand(4,7),7),mat(0x3f9e5f,.9));isl.position.set(x,0,z);scene.add(isl);});
 // clouds
@@ -98,8 +150,8 @@ function makeLabel(main,sub='',scale=1){
   sp.scale.set(3.4*scale,1.06*scale,1); return sp;
 }
 function addBeacon(parent,x,z,{label,sub='',color=0x38bdf8,h=7,scale=1}={}){
-  const bm=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.20,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
-  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.85,.85,h,18,1,true),bm); beam.position.set(x,h/2,z); parent.add(beam);
+  const bm=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.12,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,h,18,1,true),bm); beam.position.set(x,h/2,z); parent.add(beam);
   const ring=new THREE.Mesh(new THREE.RingGeometry(1.7,2.05,36),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,depthWrite:false,side:THREE.DoubleSide}));
   ring.rotation.x=-Math.PI/2; ring.position.set(x,.05,z); parent.add(ring);
   const sp=makeLabel(label,sub,scale); sp.position.set(x,2.7,z); parent.add(sp);
@@ -111,7 +163,7 @@ function buildBucket(x,z){
   g.add(cyl(1.02,.78,1.25,mat(0x0284c7,.35),x,.62,z,22));
   g.add(cyl(.94,.94,.08,mat(0x7dd3fc,.15,0,{emissive:0x38bdf8,emissiveIntensity:.5}),x,1.26,z,22));
   g.add(box(.16,1.0,.16,mat(0xffffff,.6),x-1.05,.9,z),box(.16,1.0,.16,mat(0xffffff,.6),x+1.05,.9,z));
-  addBeacon(g,x,z,{label:'💦 REFILL',sub:'stand here · or hold R',color:0x38bdf8,h:8,scale:1});
+  addBeacon(g,x,z,{label:'💦 REFILL',sub:'stand here · or hold R',color:0x38bdf8,h:5.5,scale:1});
   refillSpots.push({x,z,r:3.4,kind:'bucket'});
 }
 [[-9,13],[11,13.5],[0,-28]].forEach(([x,z])=>buildBucket(x,z));
@@ -130,7 +182,7 @@ function buildPool(x,z,ringCol){
 }
 buildPool(-16,-4,0xff4d8d); buildPool(19,-12,0x00b4d8);
 function updatePoolsAndBeacons(dt,t){
-  for(const a of beaconAnims){a.mat.opacity=.14+Math.sin(t*2.6+a.phase)*.07; a.sprite.position.y=a.baseY+Math.sin(t*2+a.phase)*.16; const s=1+Math.sin(t*2.2+a.phase)*.13; a.ring.scale.set(s,s,1); a.ring.material.opacity=.55+Math.sin(t*2.2+a.phase)*.3;}
+  for(const a of beaconAnims){a.mat.opacity=.09+Math.sin(t*2.6+a.phase)*.04; a.sprite.position.y=a.baseY+Math.sin(t*2+a.phase)*.16; const s=1+Math.sin(t*2.2+a.phase)*.13; a.ring.scale.set(s,s,1); a.ring.material.opacity=.55+Math.sin(t*2.2+a.phase)*.3;}
   for(const p of pools){
     p.phase+=dt;
     const dx=p.tx-p.g.position.x, dz=p.tz-p.g.position.z, d=Math.hypot(dx,dz);
@@ -287,8 +339,8 @@ function noiseHit(d=.18,vol=.12,fc=2500){try{const a=ac(),len=a.sampleRate*d,buf
 
 // ===== game state =====
 const S={mode:'title',hp:100,water:100,score:0,kills:0,wave:0,combo:0,comboT:0,weapon:1,shake:0,time:0,pu:{rapid:0,power:0,speed:0,freeze:0},puSpawnT:6};
-const player={pos:V3(0,0,2),vel:V3(),yaw:Math.PI,vy:0,onGround:true,jumps:0,runPhase:0,speedNow:0,sliding:0,aiming:false,firing:false,fireCd:0,hurtCd:0};
-let camYaw=Math.PI, camPitch=-.18; // camera behind player looking toward -? player faces direction of camYaw
+const player={pos:V3(0,0,-10),vel:V3(),yaw:0,vy:0,onGround:true,jumps:0,runPhase:0,speedNow:0,sliding:0,aiming:false,firing:false,fireCd:0,hurtCd:0};
+let camYaw=0, camPitch=-.18; // yaw 0 = looking south (+Z) out to sea; the fight faces the water now
 const enemies=[], bullets=[], fireballs=[];
 // bullet pool meshes
 const bulletGeo=new THREE.SphereGeometry(.09,8,8), bulletMat=new THREE.MeshStandardMaterial({color:0x38bdf8,emissive:0x0284c7,emissiveIntensity:1.2,roughness:.1,transparent:true,opacity:.9});
@@ -345,7 +397,7 @@ function spawnWave(n){
       const kind=(n>=2&&i%5===4)?1:(n>=3&&i%4===2)?2:0;
       const m=buildMonster(kind);
       const side=Math.random();
-      let x,z; if(side<.5){x=rand(-44,44);z=rand(-40,-34);}else if(side<.75){x=-46;z=rand(-28,10);}else{x=46;z=rand(-28,10);}
+      let x,z; if(side<.55){x=rand(-44,44);z=rand(9,15);}else if(side<.78){x=-46;z=rand(-24,12);}else{x=46;z=rand(-24,12);} // most pour in from the bonfire shoreline, in view
       m.g.position.set(x,0,z); scene.add(m.g);
       const baseHp=kind===1?130:kind===2?55:34;
       enemies.push({...m,kind,pos:m.g.position,hp:baseHp*(1+(n-1)*.12),maxHp:baseHp*(1+(n-1)*.12),speed:kind===1?2.1:kind===2?2.7:3.6,atkCd:0,shootCd:rand(1,2.4),phase:rand(0,6),wet:0});
@@ -384,7 +436,7 @@ function startGame(){
   bullets.forEach(b=>_freeMesh(_bPool,b.m)); bullets.length=0; fireballs.forEach(b=>_freeMesh(_fPool,b.m)); fireballs.length=0;
   powerups.forEach(p=>scene.remove(p.g)); powerups.length=0;
   Object.assign(S,{mode:'play',hp:100,water:100,score:0,kills:0,wave:0,combo:0,pu:{rapid:0,power:0,speed:0,freeze:0},puSpawnT:5});
-  player.pos.set(0,0,4); player.vel.set(0,0,0); player.vy=0; camYaw=Math.PI; camPitch=-.16; P.root.rotation.y=Math.PI; camera.position.set(1.2,2.4,10);
+  player.pos.set(0,0,-12); player.vel.set(0,0,0); player.vy=0; camYaw=0; camPitch=-.16; P.root.rotation.y=0; camera.position.set(-1.2,2.4,-18);
   $('title').classList.add('hidden'); $('end').classList.add('hidden'); $('hud').classList.remove('hidden');
   try{canvas.requestPointerLock?.();}catch(e){}
   ac(); spawnWave(1);
@@ -500,7 +552,10 @@ function animate(){
   const op=ocean.geometry.attributes.position;
   for(let i=0;i<op.count;i++){const x=oceanBase[i*3],y=oceanBase[i*3+1];op.setZ(i,Math.sin(x*.18+t*1.6)*.18+Math.cos(y*.22+t*1.2)*.14);}
   op.needsUpdate=true; // normals left as-is: flat-lit water, skips a full recompute every frame
-  foams.forEach((f,i)=>{f.position.z=17.2+i*2.1+Math.sin(t*1.1+i)*0.9;f.material.opacity=.5+Math.sin(t*1.1+i)*.25;});
+  foams.forEach((f,i)=>{f.position.z=f.userData.baseZ+Math.sin(t*.9+i*1.1)*1.1;f.material.opacity=.55+Math.sin(t*.9+i)*.25;});
+  waveBands.forEach((w,i)=>{w.position.z-=dt*1.1; if(w.position.z<21)w.position.z=76; w.material.opacity=.25+Math.sin(t*1.3+i*2)*.14;});
+  sailboats.forEach(s=>{s.g.position.x+=s.spd*dt; if(s.g.position.x>120)s.g.position.x=-120; if(s.g.position.x<-120)s.g.position.x=120; s.g.position.y=Math.sin(t*1.2+s.ph)*.18; s.g.rotation.z=Math.sin(t*.9+s.ph)*.05; s.g.rotation.y=s.spd>0?.15:Math.PI-.15;});
+  bonfireFlames.forEach(o=>{const sc=1+Math.sin(t*11+o.ph)*.22; o.f.scale.set(sc,sc*(1+Math.sin(t*13+o.ph)*.18),sc);});
   clouds.forEach((c,i)=>{c.position.x+=dt*(.4+i*.07); if(c.position.x>110)c.position.x=-110;});
   updatePoolsAndBeacons(dt,t);
   updateParts(dt);
@@ -512,7 +567,7 @@ function animate(){
     P.armR.sh.rotation.x=-.9+Math.sin(t*1.4)*.05; P.armR.el.rotation.x=-.35;
     P.armL.sh.rotation.x=-.7; P.armL.el.rotation.x=-.7;
     P.hips.position.y=.98+Math.sin(t*1.6)*.02;
-    const a=.65+Math.sin(t*.18)*.35; camera.position.set(player.pos.x+Math.sin(a)*4.6,1.75,player.pos.z+Math.cos(a)*4.6);
+    const a=2.55+Math.sin(t*.18)*.3; camera.position.set(player.pos.x+Math.sin(a)*4.6,1.75,player.pos.z+Math.cos(a)*4.6); // camera inland, looking out to sea behind Rene
     P.root.rotation.y=a-.55; // 3/4 front view for the title hero shot
     const _r=V3(Math.cos(a),0,-Math.sin(a)); const off=1.5*Math.min(1,camera.aspect/1.3);
     camera.lookAt(player.pos.x-_r.x*off,1.02,player.pos.z-_r.z*off); camera.fov=55; camera.updateProjectionMatrix();
