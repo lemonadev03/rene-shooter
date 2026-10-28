@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <title>RENE SHOOTER — Beach Dry-Out Showdown | Play Free in Your Browser</title>
-<meta name="description" content="Play RENE SHOOTER free in your browser: a Fortnite-style third-person beach shooter in Three.js. You're Rene (#2 in Ateneo blue) with the Solar Soaker heat blaster — evaporate waves of water monsters, grab powerups, and cool your gun at wandering beach pools and ocean dips. No download, no install."/>
+<meta name="description" content="Play RENE SHOOTER free in your browser: a Fortnite-style third-person beach shooter in Three.js. You're Rene (#2 in Ateneo blue) with the Solar Soaker heat blaster — evaporate waves of water monsters, grab powerups, and recharge at drifting sun pools — patches of concentrated sunlight. No download, no install."/>
 <meta name="keywords" content="rene shooter, beach shooter, heat blaster game, third person shooter, browser game, free online game, three.js game, webgl game, solar soaker game, water monster game, ateneo"/>
 <meta name="author" content="lemonadev03"/>
 <meta name="robots" content="index,follow,max-image-preview:large"/>
@@ -16,7 +16,7 @@
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="RENE SHOOTER"/>
 <meta property="og:title" content="RENE SHOOTER — Beach Dry-Out Showdown ☀️💦"/>
-<meta property="og:description" content="Fortnite-style third-person beach shooter in your browser. Rene (#2 in blue) vs waves of water monsters — evaporate them all with the Solar Soaker, grab powerups, chase the wandering pools to cool down. Free, no download."/>
+<meta property="og:description" content="Fortnite-style third-person beach shooter in your browser. Rene (#2 in blue) vs waves of water monsters — evaporate them all with the Solar Soaker, grab powerups, chase the drifting sun pools to recharge. Free, no download."/>
 <meta property="og:url" content="https://lemonadev03.github.io/rene-shooter/"/>
 <meta property="og:image" content="https://lemonadev03.github.io/rene-shooter/assets/og-art2.jpg"/>
 <meta property="og:image:type" content="image/jpeg"/>
@@ -27,7 +27,7 @@
 <!-- Twitter / X -->
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="RENE SHOOTER — Beach Dry-Out Showdown ☀️💦"/>
-<meta name="twitter:description" content="Third-person beach shooter in the browser: solar heat blaster vs water monsters, powerups, wandering pools. Play free — no download."/>
+<meta name="twitter:description" content="Third-person beach shooter in the browser: solar heat blaster vs water monsters, powerups, drifting sun pools. Play free — no download."/>
 <meta name="twitter:image" content="https://lemonadev03.github.io/rene-shooter/assets/og-art2.jpg"/>
 <meta name="twitter:image:alt" content="Rene (#2 in blue) evaporating water monsters with a solar heat blaster on a beach"/>
 <!-- Icons / PWA -->
@@ -47,7 +47,7 @@
 <link rel="preload" as="image" href="assets/og-art2.jpg"/>
 <link rel="stylesheet" href="style.css"/>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"VideoGame","name":"RENE SHOOTER — Beach Soak Showdown","url":"https://lemonadev03.github.io/rene-shooter/","image":"https://lemonadev03.github.io/rene-shooter/assets/og-art2.jpg","description":"A Fortnite-style third-person beach shooter that runs in the browser. Play as Rene (#2 in Ateneo blue) with the Solar Soaker heat blaster, evaporate waves of water monsters, collect powerups (Rapid Ray, Mega Heat, Speed Soda, Salt Storm), and cool the overheating gun at wandering beach pools and quick ocean dips.","genre":["Shooter","Third-person shooter","Browser game"],"gamePlatform":["Web browser","PC","Mobile"],"applicationCategory":"Game","operatingSystem":"Any (WebGL)","playMode":"SinglePlayer","inLanguage":"en","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"lemonadev03","url":"https://github.com/lemonadev03"}}
+{"@context":"https://schema.org","@type":"VideoGame","name":"RENE SHOOTER — Beach Soak Showdown","url":"https://lemonadev03.github.io/rene-shooter/","image":"https://lemonadev03.github.io/rene-shooter/assets/og-art2.jpg","description":"A Fortnite-style third-person beach shooter that runs in the browser. Play as Rene (#2 in Ateneo blue) with the Solar Soaker heat blaster, evaporate waves of water monsters, collect powerups (Rapid Ray, Mega Heat, Speed Soda, Salt Storm), and recharge the solar gun in drifting sun pools (plain sunshine trickle-charges it; saltwater shorts it out).","genre":["Shooter","Third-person shooter","Browser game"],"gamePlatform":["Web browser","PC","Mobile"],"applicationCategory":"Game","operatingSystem":"Any (WebGL)","playMode":"SinglePlayer","inLanguage":"en","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"lemonadev03","url":"https://github.com/lemonadev03"}}
 </script>
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
 </head>
@@ -74,8 +74,8 @@
   <div id="dmgVig"></div>
   <div class="bottom-left">
     <div class="bar-row"><span>♥</span><div class="bar"><i id="hpBar"></i></div><b id="hpTxt">100</b></div>
-    <div class="bar-row water"><span>🌡️</span><div class="bar"><i id="waterBar"></i></div><b id="waterTxt">100%</b></div>
-    <div id="hint">Gun overheating — cool it in a wandering 💦 POOL or a quick ocean dip (don't linger: rip current!)</div>
+    <div class="bar-row water"><span>☀️</span><div class="bar"><i id="waterBar"></i></div><b id="waterTxt">100%</b></div>
+    <div id="hint">Low charge — stand in a drifting ☀️ SUN POOL to recharge (ocean shorts the gun + rip current!)</div>
   </div>
   <div class="bottom-right">
     <div class="gunName">SOLAR SOAKER <span>SUN-DRY 3000</span></div>
@@ -92,7 +92,7 @@
 <div id="title">
   <div class="badge">ATENEO #2 • BEACH PATROL</div>
   <h1>RENE<br/><span>SHOOTER</span></h1>
-  <p class="tag">Third-person beach shooter. You're <b>Rene, #2 in blue</b>, Solar Soaker heat blaster in hand.<br/>Evaporate the water monsters bubbling out of the sea. Your gun overheats — cool it in the wandering pools or a quick ocean dip, but don't camp in the water: that's their turf, and the rip current drains your HP.</p>
+  <p class="tag">Third-person beach shooter. You're <b>Rene, #2 in blue</b>, Solar Soaker heat blaster in hand.<br/>Evaporate the water monsters bubbling out of the sea. Your gun runs on sunlight: beach sun trickle-charges it, drifting ☀️ SUN POOLS charge it fast and dry out monsters — but the sea shorts it out, and the rip current drains your HP.</p>
   <button id="playBtn">▶ &nbsp;DROP IN &nbsp;·&nbsp; CLICK TO PLAY</button>
   <div class="shareRow">
     <button class="shareBtn" type="button">🔗 Share the game</button>
@@ -101,7 +101,7 @@
   </div>
   <div class="controls">
     <div><kbd>W A S D</kbd> Move</div><div><kbd>Mouse</kbd> Look</div><div><kbd>LMB</kbd> Blast</div><div><kbd>RMB</kbd> Aim</div>
-    <div><kbd>SHIFT</kbd> Sprint</div><div><kbd>SPACE</kbd> Jump ×2</div><div><kbd>CTRL / C</kbd> Slide</div><div><kbd>R</kbd> Cool gun · <kbd>1/2</kbd> Weapon</div>
+    <div><kbd>SHIFT</kbd> Sprint</div><div><kbd>SPACE</kbd> Jump ×2</div><div><kbd>CTRL / C</kbd> Slide</div><div><kbd>R</kbd> Charge+ · <kbd>1/2</kbd> Weapon</div>
   </div>
   <div class="foot">No pointer-lock? Drag to look. Works with touch joysticks too.</div>
 </div>
@@ -113,7 +113,7 @@
   <button id="againBtn">↻ &nbsp;RUN IT BACK</button>
   <div class="shareRow"><button class="shareBtn" id="shareScore" type="button">🔗 Share my score</button></div>
 </div>
-<noscript><div style="position:fixed;inset:0;background:#0284c7;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;z-index:50"><h1>RENE SHOOTER — Beach Soak Showdown</h1><p>A free third-person beach shooter for the browser: play as Rene (#2 in Ateneo blue) with the Solar Soaker heat blaster, evaporate waves of water monsters, grab powerups, and cool your gun at wandering beach pools and ocean dips.</p><p>This game needs JavaScript and WebGL — please enable JavaScript to play.</p></div></noscript>
+<noscript><div style="position:fixed;inset:0;background:#0284c7;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;z-index:50"><h1>RENE SHOOTER — Beach Soak Showdown</h1><p>A free third-person beach shooter for the browser: play as Rene (#2 in Ateneo blue) with the Solar Soaker heat blaster, evaporate waves of water monsters, grab powerups, and recharge at drifting sun pools — patches of concentrated sunlight.</p><p>This game needs JavaScript and WebGL — please enable JavaScript to play.</p></div></noscript>
 <div id="err"></div>
 <script>window.addEventListener('error',e=>{let d=document.getElementById('err');if(d)d.textContent='⚠ '+(e.message||e.type)});</script>
 <script type="module" src="game.js"></script>

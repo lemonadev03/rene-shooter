@@ -30,7 +30,7 @@
 .bar-row span{width:20px;text-align:center;font-size:19px}
 .bar{flex:1;height:16px;background:#0007;border:2px solid #fff;border-radius:999px;overflow:hidden}
 .bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#a3e635);border-radius:999px;transition:width .2s}
-.bar-row.water i{background:linear-gradient(90deg,#0369a1,#38bdf8,#a5f3fc)}
+.bar-row.water i{background:linear-gradient(90deg,#ea580c,#facc15,#fef08a)}
 #hint{font-size:11px;opacity:0;margin-top:6px;font-weight:700;text-shadow:0 1px 4px #000}#hint.show{opacity:.95}
 .bottom-right{position:absolute;right:18px;bottom:18px;text-align:right}
 .gunName{font-weight:1000;font-size:15px;text-shadow:0 2px 5px #0007}.gunName span{color:#7dd3fc;font-size:11px;letter-spacing:1px}

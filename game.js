@@ -136,8 +136,8 @@ function umbrella(x,z,c){const g=new THREE.Group();g.position.set(x,0,z);const p
 // rocks + crates
 [[ -34,10],[36,12],[-6,-24],[8,-8]].forEach(([x,z])=>{const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,1.3)),mat(0x8d99ae,.9));r.position.set(x,.5,z);r.castShadow=true;r.receiveShadow=true;scene.add(r);colliders.push({x,z,r:1.1});});
 [[4,-20],[5.2,-20],[-22,-26]].forEach(([x,z])=>{scene.add(box(1,1,1,mat(0xb08954,.85),x,.5,z));colliders.push({x,z,r:.8});});
-// ===== refill: beach only — wandering pools + the ocean =====
-const refillSpots=[]; // {x,z,r} — pools mutate x/z as they wander
+// ===== solar charge: wandering sun pools (patches of concentrated sunlight) =====
+const refillSpots=[]; // {x,z,r,kind:'sun'} — sun pools mutate x/z as they drift
 const beaconAnims=[]; // {mat,sprite,baseY,ring,phase}
 function makeLabel(main,sub='',scale=1){
   const tex=canvasTex(512,160,(g,w,h)=>{
@@ -158,20 +158,29 @@ function addBeacon(parent,x,z,{label,sub='',color=0x38bdf8,h=7,scale=1}={}){
   const sp=makeLabel(label,sub,scale); sp.position.set(x,2.7,z); parent.add(sp);
   const a={mat:bm,sprite:sp,baseY:2.7,ring,phase:rand(0,6)}; beaconAnims.push(a); return a;
 }
-// ---- moving water pools: inflatable kiddie pools that wander the beach (the only refill spots besides the ocean) ----
+// ---- sun pools: drifting patches of concentrated sunlight with a solar mat at the center ----
 const pools=[];
-function buildPool(x,z,ringCol){
+function buildPool(x,z,accent){
   const g=new THREE.Group(); g.position.set(x,0,z); scene.add(g);
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.9,.42,12,30),mat(ringCol,.35)); ring.rotation.x=Math.PI/2; ring.position.y=.34; ring.castShadow=true; g.add(ring);
-  const ring2=new THREE.Mesh(new THREE.TorusGeometry(1.85,.30,12,30),mat(0xffffff,.4)); ring2.rotation.x=Math.PI/2; ring2.position.y=.62; g.add(ring2);
-  const water=new THREE.Mesh(new THREE.CircleGeometry(1.72,28),new THREE.MeshStandardMaterial({color:0x29b6e8,roughness:.12,transparent:true,opacity:.92,emissive:0x0a4a66,emissiveIntensity:.45}));
-  water.rotation.x=-Math.PI/2; water.position.y=.46; g.add(water);
-  const ball=sph(.3,mat(0xffd23a,.3),.7,.62,.4); g.add(ball);
-  addBeacon(g,0,0,{label:'💦 POOL',sub:'hop in to refill · it wanders',color:0x2dd4bf,h:6.5,scale:.95});
-  const spot={x,z,r:3.0,kind:'pool'}; refillSpots.push(spot);
-  pools.push({g,spot,water,ball,tx:x,tz:z,wait:rand(1,4),phase:rand(0,6)});
+  const glow=new THREE.Mesh(new THREE.CircleGeometry(2.35,32),new THREE.MeshBasicMaterial({color:0xffd23a,transparent:true,opacity:.34,depthWrite:false,blending:THREE.AdditiveBlending}));
+  glow.rotation.x=-Math.PI/2; glow.position.y=.04; g.add(glow);
+  const core=new THREE.Mesh(new THREE.CircleGeometry(1.45,28),new THREE.MeshBasicMaterial({color:0xfff2a8,transparent:true,opacity:.5,depthWrite:false,blending:THREE.AdditiveBlending}));
+  core.rotation.x=-Math.PI/2; core.position.y=.055; g.add(core);
+  // rotating sun rays on the sand
+  const rays=new THREE.Group(); rays.position.y=.07; g.add(rays);
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const ray=box(.16,.02,.85,mat(0xffc933,.4),Math.cos(a)*1.85,0,Math.sin(a)*1.85);ray.rotation.y=-a+Math.PI/2;ray.castShadow=false;rays.add(ray);}
+  // little solar-panel beach mat at the center
+  const panel=new THREE.Group(); panel.position.y=.38; panel.rotation.x=-.22; g.add(panel);
+  panel.add(box(1.65,.07,1.08,mat(accent,.4),0,-.04,0));
+  panel.add(box(1.48,.09,.92,new THREE.MeshStandardMaterial({color:0x123a7a,roughness:.25,metalness:.35,emissive:0x1d4ed8,emissiveIntensity:.35}),0,.02,0));
+  [-.45,0,.45].forEach(px=>panel.add(box(.03,.11,.9,mat(0xbfd9ff,.35),px,.03,0)));
+  [-.58,.58].forEach(px=>{const leg=box(.07,.42,.07,mat(0x6b4a26,.8),px,.18,.28);g.add(leg);});
+  const orb=sph(.27,new THREE.MeshStandardMaterial({color:0xfff2a8,emissive:0xffb020,emissiveIntensity:2.2,roughness:.2}),0,1.2,0,14,12); g.add(orb);
+  addBeacon(g,0,0,{label:'☀️ SUN POOL',sub:'stand here to charge · it drifts',color:0xffd23a,h:6.5,scale:.95});
+  const spot={x,z,r:3.2,kind:'sun'}; refillSpots.push(spot);
+  pools.push({g,spot,water:core,ball:orb,rays,panel,tx:x,tz:z,wait:rand(1,4),phase:rand(0,6)});
 }
-buildPool(-16,-4,0xff4d8d); buildPool(19,-12,0x00b4d8); buildPool(-2,-27,0xffb020);
+buildPool(-16,-4,0xff4d8d); buildPool(19,-12,0xff7b1c); buildPool(-2,-27,0x00b4d8);
 function updatePoolsAndBeacons(dt,t){
   for(const a of beaconAnims){a.mat.opacity=.09+Math.sin(t*2.6+a.phase)*.04; a.sprite.position.y=a.baseY+Math.sin(t*2+a.phase)*.16; const s=1+Math.sin(t*2.2+a.phase)*.13; a.ring.scale.set(s,s,1); a.ring.material.opacity=.55+Math.sin(t*2.2+a.phase)*.3;}
   for(const p of pools){
@@ -180,9 +189,11 @@ function updatePoolsAndBeacons(dt,t){
     if(p.wait>0){p.wait-=dt;}
     else if(d<1){p.wait=rand(2.5,6); p.tx=clamp(p.g.position.x+rand(-22,22),-42,42); p.tz=clamp(p.g.position.z+rand(-16,16),-34,12);}
     else {const sp=1.35*dt; p.g.position.x+=dx/d*sp; p.g.position.z+=dz/d*sp; p.g.rotation.y+=dt*.35;}
-    p.g.position.y=Math.abs(Math.sin(p.phase*2.4))*.07;
-    p.water.position.y=.46+Math.sin(p.phase*3.1)*.035;
-    p.ball.position.y=.62+Math.sin(p.phase*2.7)*.06; p.ball.rotation.y+=dt;
+    p.g.position.y=.015+Math.abs(Math.sin(p.phase*2.4))*.025;
+    p.water.material.opacity=.42+Math.sin(p.phase*3.1)*.12;
+    p.ball.position.y=1.2+Math.sin(p.phase*2.2)*.1; p.ball.rotation.y+=dt*1.5;
+    if(p.rays)p.rays.rotation.y+=dt*.45;
+    if(p.panel)p.panel.position.y=.38+Math.sin(p.phase*2.2)*.04;
     p.spot.x=p.g.position.x; p.spot.z=p.g.position.z;
   }
 }
@@ -253,14 +264,14 @@ function buildPlayer(){
     return {hip,knee};
   }
   const legR=leg(-1,false), legL=leg(1,true);
-  // ==== SOLAR SOAKER (sun-dry heat blaster) in right hand: evaporates water monsters, runs on coolant ====
+  // ==== SOLAR SOAKER (sun-dry heat blaster) in right hand: evaporates water monsters, runs on solar charge ====
   const gun=new THREE.Group();
   const gBody=mat(0xff7b1c,.35), gYellow=mat(0xffd23a,.35), gCoil=new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff5500,emissiveIntensity:1.8,roughness:.3});
   gun.add(box(.14,.2,.58,gBody,0,0,.14));
   const barrel=cyl(.09,.11,.3,gYellow,0,.02,.55); barrel.rotation.x=Math.PI/2; gun.add(barrel);
   const lens=cyl(.075,.075,.05,new THREE.MeshStandardMaterial({color:0xffec99,emissive:0xffaa00,emissiveIntensity:2.2,roughness:.15}),0,.02,.72); lens.rotation.x=Math.PI/2; gun.add(lens);
   for(let i=0;i<3;i++){const coil=new THREE.Mesh(new THREE.TorusGeometry(.085,.018,8,18),gCoil); coil.position.set(0,.02,.38+i*.11); gun.add(coil);} // glowing heat coils
-  const cell=cyl(.1,.1,.4,mat(0x7dd3fc,.2,0,{transparent:true,opacity:.8,emissive:0x38bdf8,emissiveIntensity:.5}),0,.18,.08); cell.rotation.x=Math.PI/2; gun.add(cell); // coolant cell
+  const cell=cyl(.1,.1,.4,mat(0x123a7a,.3,.3,{transparent:true,opacity:.9,emissive:0xffd23a,emissiveIntensity:.45}),0,.18,.08); cell.rotation.x=Math.PI/2; gun.add(cell); // solar charge cell
   for(let i=0;i<5;i++){const fin=box(.02,.16,.1,gYellow,(i-2)*.045,.17,-.12); fin.rotation.z=(i-2)*.18; gun.add(fin);} // sun-ray fins
   gun.add(box(.09,.22,.11,gBody,0,-.16,-.05)); // grip
   gun.add(box(.1,.08,.3,mat(0x374151,.5),0,-.11,.28)); // under-rail
@@ -725,15 +736,15 @@ function animate(){
     P.gun.rotation.x=Math.PI/2-.45; P.gun.position.set(0,-.36,.02);
   }
   P.headG.rotation.x=camPitch*.35;
-  // refill: the ocean and the wandering beach pools fill you up just by standing in them; R fills faster
+  // solar charge (S.water = charge %): sun pools charge fast, plain beach sun trickles, saltwater shorts the gun out
   const inOcean=player.pos.z>15.5;
   const spot=refillSpots.find(s=>Math.hypot(player.pos.x-s.x,player.pos.z-s.z)<s.r);
-  if(inOcean||spot){
-    const rate=(spot?52:38)+(keys.KeyR?45:0);
-    if(S.water<100){S.water=Math.min(100,S.water+rate*dt);
-      if(Math.random()<.35){_v3.set(player.pos.x+rand(-.5,.5),.3,player.pos.z+rand(-.5,.5));spawnP(_v3,2,0x7dd3fc,1.2,.45,-3,1.8);}
-      if(keys.KeyR&&Math.random()<.3)beep(rand(700,1100),.05,'sine',.02);}
-  }
+  const chargeRate=spot?58+(keys.KeyR?22:0):inOcean?-9:2.2;
+  const beforeCharge=S.water;
+  S.water=clamp(S.water+chargeRate*dt,0,100);
+  if(spot&&beforeCharge<100&&Math.random()<.4){_v3.set(player.pos.x+rand(-.6,.6),.25,player.pos.z+rand(-.6,.6));spawnP(_v3,2,0xffd23a,1.1,.55,1.5,2.2);}
+  if(inOcean&&Math.random()<.22){_v3.set(player.pos.x+rand(-.5,.5),.5,player.pos.z+rand(-.5,.5));spawnP(_v3,1,0xbae6fd,1.4,.35,-2,1.4);}
+  if(spot&&keys.KeyR&&Math.random()<.3)beep(rand(700,1100),.05,'sine',.02);
   EL.hint.classList.toggle('show',S.water<28);
   // 🌊 rip current: dip for refill, don't live out there — past the grace window HP drains harder the longer you stay
   if(inOcean)player.oceanTime+=dt; else player.oceanTime=Math.max(0,player.oceanTime-dt*2);
@@ -751,7 +762,7 @@ function animate(){
     S.hp-=drain*dt; player.hurtCd=Math.max(player.hurtCd,0); S.shake=Math.max(S.shake,.09);
     if(Math.random()<.3){_v3.set(player.pos.x+rand(-.6,.6),.35,player.pos.z+rand(-.6,.6));spawnP(_v3,2,0xbae6fd,1.6,.5,-3,2.2);}
     if(Math.random()<.04)beep(rand(180,260),.12,'sine',.035,-60);
-    if(S.hp<=0){S.hp=0; feed('🌊 The rip current got Rene!'); gameOver(false); $('endSub').textContent='The rip current dragged Rene under. Dip in the ocean for a quick refill, then get back to dry sand — chase the wandering pools instead.';}
+    if(S.hp<=0){S.hp=0; feed('🌊 The rip current got Rene!'); gameOver(false); $('endSub').textContent='The rip current dragged Rene under. The sea is monster turf — fight from the sand and recharge in the sun pools.';}
   }
   // slow hp regen after no hurt
   player.hurtCd-=dt; if(player.hurtCd<-4&&S.hp<100)S.hp=Math.min(100,S.hp+4*dt);
@@ -775,9 +786,11 @@ function animate(){
   // --- enemies AI ---
   let alive=0;
   for(const e of enemies){ if(e.dead)continue; alive++;
-    // home turf: water monsters rehydrate (regen + haste, dried slow washes off fast) in the ocean or a pool — lure them onto dry sand
-    const inWater=e.pos.z>15.5||refillSpots.some(s=>Math.hypot(e.pos.x-s.x,e.pos.z-s.z)<s.r);
+    // home turf: water monsters rehydrate (regen + haste) in the OCEAN only; sun pools dry them out — lure them onto dry sand and into the light
+    const inWater=e.pos.z>15.5;
+    const inSun=refillSpots.some(s=>Math.hypot(e.pos.x-s.x,e.pos.z-s.z)<s.r);
     if(inWater&&e.hp<e.maxHp)e.hp=Math.min(e.maxHp,e.hp+5*dt);
+    if(inSun){e.hp-=3.5*dt; e.wet=1; if(Math.random()<.16){_v3.copy(e.pos);_v3.y+=1;spawnP(_v3,2,0xffffff,1,.6,1.5,1.8);} if(e.hp<=0){killEnemy(e,true);continue;}}
     e.phase+=dt*6; e.wet=Math.max(0,e.wet-dt*(inWater?4:1.2)); e.atkCd-=dt; e.shootCd-=dt; e.abCd-=dt; e.healCd-=dt; e.boost=1; e.lift=0;
     _v1.copy(player.pos).sub(e.pos); _v1.y=0; const dist=_v1.length(); const dir=_v1.normalize();
     const dx=dir.x, dz=dir.z;
