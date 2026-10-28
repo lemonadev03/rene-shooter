@@ -43,13 +43,13 @@ sandTex.wrapS=sandTex.wrapT=THREE.RepeatWrapping; sandTex.repeat.set(20,9);
 // dry sand ends AT the shoreline (z=19) — it used to run 24m out over the water, which read as desert
 const sand=new THREE.Mesh(new THREE.PlaneGeometry(340,80),new THREE.MeshStandardMaterial({map:sandTex,roughness:.95}));
 sand.rotation.x=-Math.PI/2; sand.position.set(0,0,-21); sand.receiveShadow=true; scene.add(sand);
-// wet sand band where waves reach + shallow shelf under the water
+// wet sand band where waves reach + deep seabed far below the lowest wave trough (never breaks the surface)
 const wet=new THREE.Mesh(new THREE.PlaneGeometry(340,10),new THREE.MeshStandardMaterial({color:0xd8b26e,roughness:.45}));
 wet.rotation.x=-Math.PI/2; wet.position.set(0,.012,15); wet.receiveShadow=true; scene.add(wet);
-const shelf=new THREE.Mesh(new THREE.PlaneGeometry(340,34),new THREE.MeshStandardMaterial({color:0xc7a15e,roughness:.8}));
-shelf.rotation.x=-Math.PI/2; shelf.position.set(0,-.32,33); scene.add(shelf);
+const shelf=new THREE.Mesh(new THREE.PlaneGeometry(340,110),new THREE.MeshStandardMaterial({color:0x0e6d9c,roughness:.9}));
+shelf.rotation.x=-Math.PI/2; shelf.position.set(0,-1.25,68); scene.add(shelf);
 // ocean
-const oceanMat=new THREE.MeshStandardMaterial({color:0x1193c9,roughness:.16,metalness:.05,transparent:true,opacity:.88,emissive:0x073a55,emissiveIntensity:.35});
+const oceanMat=new THREE.MeshStandardMaterial({color:0x1193c9,roughness:.48,metalness:0,transparent:true,opacity:.94,emissive:0x073a55,emissiveIntensity:.3});
 const ocean=new THREE.Mesh(new THREE.PlaneGeometry(340,96,36,14),oceanMat);
 ocean.rotation.x=-Math.PI/2; ocean.position.set(0,-.14,62); scene.add(ocean);
 const oceanBase=ocean.geometry.attributes.position.array.slice();
@@ -64,7 +64,7 @@ for(let i=0;i<4;i++){
 }
 // rolling wave bands out at sea
 const waveBands=[];
-for(let i=0;i<5;i++){const w=new THREE.Mesh(new THREE.PlaneGeometry(340,.9),mat(0xffffff,.4,0,{transparent:true,opacity:.4}));w.rotation.x=-Math.PI/2;w.position.set(0,.02,26+i*11);scene.add(w);waveBands.push(w);}
+for(let i=0;i<5;i++){const w=new THREE.Mesh(new THREE.PlaneGeometry(340,.55),mat(0xffffff,.4,0,{transparent:true,opacity:.22}));w.rotation.x=-Math.PI/2;w.position.set(0,.09,26+i*11);scene.add(w);waveBands.push(w);}
 // sand detail: tonal patches, shells, starfish
 {const patchCols=[0xe6c87a,0xf5df9e,0xdec084];
  for(let i=0;i<26;i++){const p=new THREE.Mesh(new THREE.CircleGeometry(rand(1.2,3.4),18),new THREE.MeshStandardMaterial({color:patchCols[i%3],roughness:1,transparent:true,opacity:.5}));p.rotation.x=-Math.PI/2;p.rotation.z=rand(0,3);p.scale.y=rand(.5,.8);p.position.set(rand(-48,48),.008,rand(-36,13));p.receiveShadow=true;scene.add(p);}
@@ -634,10 +634,10 @@ function animate(){
   const dt=Math.min(clock.getDelta(),.05); S.time+=dt; const t=S.time;
   // ocean waves
   const op=ocean.geometry.attributes.position;
-  for(let i=0;i<op.count;i++){const x=oceanBase[i*3],y=oceanBase[i*3+1];op.setZ(i,Math.sin(x*.18+t*1.6)*.18+Math.cos(y*.22+t*1.2)*.14);}
+  for(let i=0;i<op.count;i++){const x=oceanBase[i*3],y=oceanBase[i*3+1];op.setZ(i,Math.sin(x*.18+t*1.6)*.12+Math.cos(y*.22+t*1.2)*.09);}
   op.needsUpdate=true; // normals left as-is: flat-lit water, skips a full recompute every frame
   foams.forEach((f,i)=>{f.position.z=f.userData.baseZ+Math.sin(t*.9+i*1.1)*1.1;f.material.opacity=.55+Math.sin(t*.9+i)*.25;});
-  waveBands.forEach((w,i)=>{w.position.z-=dt*1.1; if(w.position.z<21)w.position.z=76; w.material.opacity=.25+Math.sin(t*1.3+i*2)*.14;});
+  waveBands.forEach((w,i)=>{w.position.z-=dt*1.1; if(w.position.z<21)w.position.z=76; w.material.opacity=.14+Math.sin(t*1.3+i*2)*.07;});
   sailboats.forEach(s=>{s.g.position.x+=s.spd*dt; if(s.g.position.x>120)s.g.position.x=-120; if(s.g.position.x<-120)s.g.position.x=120; s.g.position.y=Math.sin(t*1.2+s.ph)*.18; s.g.rotation.z=Math.sin(t*.9+s.ph)*.05; s.g.rotation.y=s.spd>0?.15:Math.PI-.15;});
   bonfireFlames.forEach(o=>{const sc=1+Math.sin(t*11+o.ph)*.22; o.f.scale.set(sc,sc*(1+Math.sin(t*13+o.ph)*.18),sc);});
   clouds.forEach((c,i)=>{c.position.x+=dt*(.4+i*.07); if(c.position.x>110)c.position.x=-110;});
@@ -696,7 +696,11 @@ function animate(){
   let dy=targetYaw-P.root.rotation.y; while(dy>Math.PI)dy-=Math.PI*2; while(dy<-Math.PI)dy+=Math.PI*2;
   P.root.rotation.y+=dy*Math.min(1,dt*14);
   P.root.position.copy(player.pos);
-  blob.position.set(player.pos.x,.015,player.pos.z); blob.material.opacity=clamp(.28-player.pos.y*.04,.06,.28);
+  // wade: sink the model into the surf as he goes deeper, so he never walks on top of the sea
+  const wade=player.onGround?clamp((player.pos.z-15.5)/9,0,1)*.36:0;
+  P.root.position.y-=wade;
+  if(wade>0){blob.position.set(player.pos.x,.09,player.pos.z); blob.material.opacity=.1;}
+  else{blob.position.set(player.pos.x,.015,player.pos.z); blob.material.opacity=clamp(.28-player.pos.y*.04,.06,.28);}
   // run animation
   player.runPhase+=dt*(3+player.speedNow*1.55);
   const rp=player.runPhase, amp=clamp(player.speedNow/8,0,1);
