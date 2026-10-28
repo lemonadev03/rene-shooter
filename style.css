@@ -1,0 +1,53 @@
+*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#7ed6f2;font-family:system-ui,'Segoe UI',Arial,sans-serif;color:#fff}
+#c{width:100%;height:100%;display:block;touch-action:none}
+.hidden{display:none!important}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+#cross{position:absolute;left:50%;top:50%;width:36px;height:36px;transform:translate(-50%,-50%)}
+#cross span{position:absolute;background:#fff;box-shadow:0 0 4px #0008;border-radius:2px}
+#cross span:nth-child(1){left:50%;top:0;width:3px;height:10px;transform:translateX(-50%)}
+#cross span:nth-child(2){left:50%;bottom:0;width:3px;height:10px;transform:translateX(-50%)}
+#cross span:nth-child(3){left:0;top:50%;height:3px;width:10px;transform:translateY(-50%)}
+#cross span:nth-child(4){right:0;top:50%;height:3px;width:10px;transform:translateY(-50%)}
+#cross i{position:absolute;left:50%;top:50%;width:4px;height:4px;background:#fff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 4px #000}
+#hitmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(1);font-size:30px;font-weight:900;color:#ffe23a;text-shadow:0 2px 0 #d2691e;opacity:0}
+.top-left{position:absolute;top:16px;left:18px;text-shadow:0 2px 6px #0005}
+.logo{font-weight:1000;font-style:italic;font-size:26px;letter-spacing:-1px}.logo b{color:#ffe23a}
+#wavePill{display:inline-block;margin-top:6px;background:#1046b8;border:2px solid #fff;padding:5px 12px;border-radius:999px;font-weight:900;font-size:13px}
+#enemiesLeft{display:inline-block;margin-left:8px;background:#0006;padding:6px 10px;border-radius:999px;font-weight:800;font-size:13px}
+.top-right{position:absolute;top:16px;right:20px;text-align:right;text-shadow:0 2px 6px #0006}
+#score{font-size:38px;font-weight:1000;line-height:1}.label{font-size:11px;letter-spacing:2px;opacity:.85;font-weight:800}
+#combo{color:#ffe23a;font-weight:1000;font-size:18px;height:22px}
+#banner{position:absolute;top:21%;left:50%;transform:translateX(-50%);text-align:center;text-shadow:0 3px 0 #1046b8,0 8px 24px #0007}
+#banner h2{font-size:64px;font-weight:1000;font-style:italic}#banner p{font-weight:800;opacity:.95}
+#dmgVig{position:absolute;inset:0;box-shadow:inset 0 0 120px 40px rgba(255,40,0,0);transition:box-shadow .15s}
+.bottom-left{position:absolute;left:18px;bottom:18px;width:270px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-top:7px;font-weight:900;text-shadow:0 1px 4px #0007}
+.bar-row span{width:20px;text-align:center;font-size:19px}
+.bar{flex:1;height:16px;background:#0007;border:2px solid #fff;border-radius:999px;overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#a3e635);border-radius:999px;transition:width .2s}
+.bar-row.water i{background:linear-gradient(90deg,#0369a1,#38bdf8,#a5f3fc)}
+#hint{font-size:11px;opacity:0;margin-top:6px;font-weight:700;text-shadow:0 1px 4px #000}#hint.show{opacity:.95}
+.bottom-right{position:absolute;right:18px;bottom:18px;text-align:right}
+.gunName{font-weight:1000;font-size:15px;text-shadow:0 2px 5px #0007}.gunName span{color:#7dd3fc;font-size:11px;letter-spacing:1px}
+#ammo{font-size:42px;font-weight:1000;line-height:1;text-shadow:0 2px 6px #0007}#ammo small{font-size:14px;opacity:.8}
+.slots{display:flex;gap:6px;justify-content:flex-end;margin-top:7px}
+.slot{width:58px;height:54px;background:#0008;border:2px solid #fff6;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:20px}.slot small{font-size:8px;font-weight:800;opacity:.85}.slot.on{border-color:#ffe23a;background:#1046b8cc;transform:translateY(-4px)}
+#killFeed{position:absolute;right:18px;top:110px;text-align:right;font-weight:800;font-size:13px;text-shadow:0 1px 4px #000}
+#joy{position:absolute;left:22px;bottom:105px;width:110px;height:110px;border:2px solid #fff7;border-radius:50%;background:#0003;display:none}
+#joyStick{position:absolute;left:50%;top:50%;width:48px;height:48px;background:#fff;border-radius:50%;transform:translate(-50%,-50%)}
+#touchBtns{position:absolute;right:16px;bottom:110px;display:none;gap:10px;pointer-events:auto}
+#touchBtns button{width:64px;height:64px;border-radius:50%;border:2px solid #fff;background:#1046b8cc;color:#fff;font-weight:900}
+@media(pointer:coarse){#joy,#touchBtns{display:flex}#joy{display:block}}
+#title,#end{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;background:linear-gradient(180deg,rgba(6,60,110,.18),rgba(2,22,60,.42))}
+.badge{background:#1046b8;border:2px solid #fff;padding:7px 14px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:2px}
+#title h1,#end h1{font-size:clamp(54px,11vw,110px);line-height:.82;font-weight:1000;font-style:italic;letter-spacing:-3px;margin:14px 0;text-shadow:0 5px 0 #1046b8,0 12px 30px #0008}
+#title h1 span{color:#ffe23a;-webkit-text-stroke:2px #1046b8}
+.tag{font-weight:700;max-width:560px;text-shadow:0 2px 8px #0009;line-height:1.5}
+#playBtn,#againBtn{pointer-events:auto;margin-top:22px;background:#ffe23a;color:#123;padding:16px 30px;border:3px solid #fff;border-bottom:7px solid #eab308;border-radius:14px;font-size:19px;font-weight:1000;cursor:pointer;transform:skew(-6deg)}
+#playBtn:hover,#againBtn:hover{transform:skew(-6deg) scale(1.04)}
+.controls{display:grid;grid-template-columns:repeat(4,auto);gap:8px 16px;margin-top:20px;font-size:12px;font-weight:700;text-shadow:0 1px 4px #000}
+kbd{background:#fff;color:#123;padding:2px 6px;border-radius:5px;font-family:inherit;box-shadow:0 2px 0 #999}
+.foot{margin-top:14px;font-size:12px;opacity:.85;font-weight:700}
+.stats{display:flex;gap:14px;margin:16px}.stats div{background:#0007;border:2px solid #fff;border-radius:14px;padding:14px 20px}.stats b{font-size:32px;display:block}.stats span{font-size:11px;letter-spacing:2px;opacity:.85}
+#err{position:fixed;bottom:6px;left:6px;z-index:99;color:#fecaca;font-size:12px;pointer-events:none}
+@media(max-width:640px){.controls{grid-template-columns:repeat(2,auto)}#banner h2{font-size:40px}.bottom-left{width:190px}.slot{width:44px;height:44px}}

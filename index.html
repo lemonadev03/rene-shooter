@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>RENE SHOOTER — Beach Soak Showdown</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>💦</text></svg>"/>
+<link rel="stylesheet" href="style.css"/>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div id="app"><canvas id="c"></canvas></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="cross"><span></span><span></span><span></span><span></span><i></i></div>
+  <div id="hitmark">✕</div>
+  <div class="top-left">
+    <div class="logo">RENE <b>SHOOTER</b></div>
+    <div id="wavePill">WAVE 1</div>
+    <div id="enemiesLeft">🔥 6 left</div>
+  </div>
+  <div class="top-right">
+    <div id="score">0</div><div class="label">SCORE</div>
+    <div id="combo"></div>
+  </div>
+  <div id="banner" class="hidden"><h2 id="bannerTitle">WAVE 1</h2><p id="bannerSub">Fire monsters inbound!</p></div>
+  <div id="dmgVig"></div>
+  <div class="bottom-left">
+    <div class="bar-row"><span>♥</span><div class="bar"><i id="hpBar"></i></div><b id="hpTxt">100</b></div>
+    <div class="bar-row water"><span>≈</span><div class="bar"><i id="waterBar"></i></div><b id="waterTxt">100%</b></div>
+    <div id="hint">Dip in the ocean or press <b>R</b> near water to refill</div>
+  </div>
+  <div class="bottom-right">
+    <div class="gunName">SUPER SOAKER <span>ATENEO EDITION</span></div>
+    <div id="ammo">∞ <small>/ SPRY</small></div>
+    <div class="slots"><div class="slot on">🔫<small>1 Soaker</small></div><div class="slot" id="slotBurst">💦<small>2 Burst</small></div><div class="slot">🧊<small>—</small></div><div class="slot">🍌<small>—</small></div></div>
+  </div>
+  <div id="killFeed"></div>
+  <!-- touch -->
+  <div id="joy"><i id="joyStick"></i></div>
+  <div id="touchBtns"><button id="btnJump">JUMP</button><button id="btnFire">💦</button><button id="btnAim">AIM</button></div>
+</div>
+
+<!-- Title -->
+<div id="title">
+  <div class="badge">ATENEO #2 • BEACH PATROL</div>
+  <h1>RENE<br/><span>SHOOTER</span></h1>
+  <p class="tag">Third-person beach shooter. You're <b>#2 in blue</b>, water gun in hand.<br/>Soak the fire monsters before they torch the shoreline.</p>
+  <button id="playBtn">▶ &nbsp;DROP IN &nbsp;·&nbsp; CLICK TO PLAY</button>
+  <div class="controls">
+    <div><kbd>W A S D</kbd> Move</div><div><kbd>Mouse</kbd> Look</div><div><kbd>LMB</kbd> Soak</div><div><kbd>RMB</kbd> Aim</div>
+    <div><kbd>SHIFT</kbd> Sprint</div><div><kbd>SPACE</kbd> Jump ×2</div><div><kbd>CTRL / C</kbd> Slide</div><div><kbd>R</kbd> Refill · <kbd>1/2</kbd> Weapon</div>
+  </div>
+  <div class="foot">No pointer-lock? Drag to look. Works with touch joysticks too.</div>
+</div>
+
+<!-- Death / Victory -->
+<div id="end" class="hidden">
+  <h1 id="endTitle">WIPED OUT!</h1><p id="endSub"></p>
+  <div class="stats"><div><b id="stScore">0</b><span>SCORE</span></div><div><b id="stWave">1</b><span>WAVE</span></div><div><b id="stKills">0</b><span>SOAKED</span></div></div>
+  <button id="againBtn">↻ &nbsp;RUN IT BACK</button>
+</div>
+<div id="err"></div>
+<script>window.addEventListener('error',e=>{let d=document.getElementById('err');if(d)d.textContent='⚠ '+(e.message||e.type)});</script>
+<script type="module" src="game.js"></script>
+</body></html>
