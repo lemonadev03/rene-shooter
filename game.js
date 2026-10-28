@@ -339,7 +339,8 @@ function noiseHit(d=.18,vol=.12,fc=2500){try{const a=ac(),len=a.sampleRate*d,buf
 
 // ===== game state =====
 const S={mode:'title',hp:100,water:100,score:0,kills:0,wave:0,combo:0,comboT:0,weapon:1,shake:0,time:0,pu:{rapid:0,power:0,speed:0,freeze:0},puSpawnT:6};
-const player={pos:V3(0,0,-10),vel:V3(),yaw:0,vy:0,onGround:true,jumps:0,runPhase:0,speedNow:0,sliding:0,aiming:false,firing:false,fireCd:0,hurtCd:0};
+const player={pos:V3(0,0,-10),vel:V3(),yaw:0,vy:0,onGround:true,jumps:0,runPhase:0,speedNow:0,sliding:0,aiming:false,firing:false,fireCd:0,hurtCd:0,oceanTime:0};
+const OCEAN_GRACE=4; // seconds of free swimming before the rip current starts draining HP
 let camYaw=0, camPitch=-.18; // yaw 0 = looking south (+Z) out to sea; the fight faces the water now
 const enemies=[], bullets=[], fireballs=[];
 // bullet pool meshes
@@ -436,7 +437,7 @@ function startGame(){
   bullets.forEach(b=>_freeMesh(_bPool,b.m)); bullets.length=0; fireballs.forEach(b=>_freeMesh(_fPool,b.m)); fireballs.length=0;
   powerups.forEach(p=>scene.remove(p.g)); powerups.length=0;
   Object.assign(S,{mode:'play',hp:100,water:100,score:0,kills:0,wave:0,combo:0,pu:{rapid:0,power:0,speed:0,freeze:0},puSpawnT:5});
-  player.pos.set(0,0,-12); player.vel.set(0,0,0); player.vy=0; camYaw=0; camPitch=-.16; P.root.rotation.y=0; camera.position.set(-1.2,2.4,-18);
+  player.pos.set(0,0,-12); player.vel.set(0,0,0); player.vy=0; player.oceanTime=0; camYaw=0; camPitch=-.16; P.root.rotation.y=0; camera.position.set(-1.2,2.4,-18);
   $('title').classList.add('hidden'); $('end').classList.add('hidden'); $('hud').classList.remove('hidden');
   try{canvas.requestPointerLock?.();}catch(e){}
   ac(); spawnWave(1);
@@ -508,7 +509,7 @@ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updat
 const _tip=new THREE.Vector3(), _dir=new THREE.Vector3(), _target=new THREE.Vector3();
 const _v1=new THREE.Vector3(), _v2=new THREE.Vector3(), _v3=new THREE.Vector3(); let _frame=0;
 const _UP=new THREE.Vector3(0,1,0), _desired=new THREE.Vector3(), _look=new THREE.Vector3();
-const EL={hpBar:$('hpBar'),hpTxt:$('hpTxt'),waterBar:$('waterBar'),waterTxt:$('waterTxt'),score:$('score'),combo:$('combo'),left:$('enemiesLeft'),hint:$('hint'),power:$('powerPill')};
+const EL={hpBar:$('hpBar'),hpTxt:$('hpTxt'),waterBar:$('waterBar'),waterTxt:$('waterTxt'),score:$('score'),combo:$('combo'),left:$('enemiesLeft'),hint:$('hint'),power:$('powerPill'),ocean:$('oceanWarn'),cold:$('coldVig')};
 let _hudFrame=-9, _ftAcc=0, _ftN=0;
 function shoot(dt){
   player.fireCd-=dt;
@@ -643,6 +644,24 @@ function animate(){
       if(keys.KeyR&&Math.random()<.3)beep(rand(700,1100),.05,'sine',.02);}
   }
   EL.hint.classList.toggle('show',S.water<28);
+  // 🌊 rip current: dip for refill, don't live out there — past the grace window HP drains harder the longer you stay
+  if(inOcean)player.oceanTime+=dt; else player.oceanTime=Math.max(0,player.oceanTime-dt*2);
+  const over=player.oceanTime-OCEAN_GRACE;
+  if(player.oceanTime>2.4){
+    EL.ocean.classList.remove('hidden');
+    EL.ocean.classList.toggle('draining',over>0);
+    EL.ocean.textContent=!inOcean?'🌊 Catch your breath — the current is fading…':over>0?'🌊 RIP CURRENT! HP draining — get back to shore!':`🌊 Rip current pulling… get out in ${Math.max(0,-over).toFixed(1)}s`;
+  }else{
+    EL.ocean.classList.add('hidden'); EL.ocean.classList.remove('draining');
+  }
+  EL.cold.style.boxShadow=`inset 0 0 130px 45px rgba(14,116,233,${clamp((player.oceanTime-1.5)/5,0,.55)})`;
+  if(inOcean&&over>0&&S.mode==='play'){
+    const drain=Math.min(14,3+over*1.4);
+    S.hp-=drain*dt; player.hurtCd=Math.max(player.hurtCd,0); S.shake=Math.max(S.shake,.09);
+    if(Math.random()<.3){_v3.set(player.pos.x+rand(-.6,.6),.35,player.pos.z+rand(-.6,.6));spawnP(_v3,2,0xbae6fd,1.6,.5,-3,2.2);}
+    if(Math.random()<.04)beep(rand(180,260),.12,'sine',.035,-60);
+    if(S.hp<=0){S.hp=0; feed('🌊 The rip current got Rene!'); gameOver(false); $('endSub').textContent='The rip current dragged Rene under. Dip in the ocean for a quick refill, then get back to dry sand — roam the buckets and pools instead.';}
+  }
   // slow hp regen after no hurt
   player.hurtCd-=dt; if(player.hurtCd<-4&&S.hp<100)S.hp=Math.min(100,S.hp+4*dt);
   shoot(dt);
