@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // ===== helpers =====
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
+const smoothstep01=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
 const rand=(a,b)=>a+Math.random()*(b-a);
 const V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 function canvasTex(w,h,fn){const c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;}
@@ -36,41 +38,161 @@ scene.add(new THREE.HemisphereLight(0xbfeaff,0xf2d38a,1.0));
 // sky dome gradient + sun disc
 const sky=new THREE.Mesh(new THREE.SphereGeometry(260,24,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{},vertexShader:'varying vec3 v; void main(){v=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec3 v; void main(){float h=normalize(v).y; vec3 c=mix(vec3(.98,.93,.78),vec3(.25,.72,.95),smoothstep(-.05,.55,h)); c=mix(c,vec3(.1,.5,.9),smoothstep(.5,1.,h)*.6); gl_FragColor=vec4(c,1.);}'})); scene.add(sky);
 
+// ===== collision primitives =====
+// colliders (all in world XZ; y0/y1 = vertical extent, used by bullets):
+//   circle {t:0,x,z,r} · capsule/segment {t:1,x,z,x2,z2,r} · oriented box {t:2,x,z,hx,hz,cs,sn}
+// bo:true = bullets/fireballs only (upper trunk etc.), never blocks walkers
+const colliders=[];
+const camObstacles=[]; // meshes the third-person camera must not push through
+const addCircle=(x,z,r,y1=2,y0=0)=>colliders.push({t:0,x,z,x2:x,z2:z,r,y0,y1});
+const addSeg=(x,z,x2,z2,r,y1=2,y0=0,bo=false)=>colliders.push({t:1,x,z,x2,z2,r,y0,y1,bo});
+const addBox=(x,z,hx,hz,rot,y1=2,y0=0)=>colliders.push({t:2,x,z,hx,hz,cs:Math.cos(rot),sn:Math.sin(rot),r:0,y0,y1});
+const addObstacle=(...ms)=>ms.forEach(m=>camObstacles.push(m));
+// does a disc (px,pz,rad) overlap collider c? if so _cx/_cz = the disc centre pushed just clear
+let _cx=0,_cz=0;
+function _push(c,px,pz,rad){
+  if(c.t===2){
+    const dx=px-c.x,dz=pz-c.z,lx=dx*c.cs-dz*c.sn,lz=dx*c.sn+dz*c.cs;
+    const vx=lx-clamp(lx,-c.hx,c.hx),vz=lz-clamp(lz,-c.hz,c.hz),d2=vx*vx+vz*vz;
+    let nx=lx,nz=lz;
+    if(d2>0){if(d2>=rad*rad)return false;const d=Math.sqrt(d2),k=(rad-d)/d;nx+=vx*k;nz+=vz*k;}
+    else{const penX=c.hx+rad-Math.abs(lx),penZ=c.hz+rad-Math.abs(lz);if(penX<penZ)nx=Math.sign(lx||1)*(c.hx+rad);else nz=Math.sign(lz||1)*(c.hz+rad);}
+    _cx=c.x+nx*c.cs+nz*c.sn;_cz=c.z-nx*c.sn+nz*c.cs;return true;
+  }
+  const abx=c.x2-c.x,abz=c.z2-c.z,l2=abx*abx+abz*abz;
+  const t=l2>1e-9?clamp(((px-c.x)*abx+(pz-c.z)*abz)/l2,0,1):0;
+  const qx=c.x+abx*t,qz=c.z+abz*t;let dx=px-qx,dz=pz-qz;const R=c.r+rad,d2=dx*dx+dz*dz;
+  if(d2>=R*R)return false;
+  let d=Math.sqrt(d2); if(d<1e-5){dx=l2>1e-9?-abz:1;dz=l2>1e-9?abx:0;d=Math.hypot(dx,dz);}
+  _cx=qx+dx/d*R;_cz=qz+dz/d*R;return true;
+}
+// one shared push-out for the player, enemies and balls. nrm (optional {x,z}) receives the summed push direction.
+function resolveCollision(pos,rad,nrm){
+  let hit=false; if(nrm){nrm.x=0;nrm.z=0;}
+  for(let it=0;it<3;it++){let any=false;
+    for(const c of colliders){if(c.bo)continue;
+      if(_push(c,pos.x,pos.z,rad)){if(nrm){nrm.x+=_cx-pos.x;nrm.z+=_cz-pos.z;}pos.x=_cx;pos.z=_cz;any=hit=true;}}
+    if(!any)break;}
+  if(nrm){const l=Math.hypot(nrm.x,nrm.z);if(l>1e-6){nrm.x/=l;nrm.z/=l;}}
+  return hit;
+}
+// does a projectile of radius rad hit a solid prop anywhere along (x0,y0,z0)->(x1,y1,z1)? hit point -> _hitP
+const _hitP=new THREE.Vector3();
+function projectileHitsSolid(x0,y0,z0,x1,y1,z1,rad){
+  const n=Math.max(1,Math.ceil(Math.hypot(x1-x0,y1-y0,z1-z0)/.3));
+  for(let s=1;s<=n;s++){const f=s/n,x=x0+(x1-x0)*f,y=y0+(y1-y0)*f,z=z0+(z1-z0)*f;
+    for(const c of colliders){if(y<c.y0-rad||y>c.y1+rad)continue;
+      if(_push(c,x,z,rad)){_hitP.set(x,y,z);return true;}}}
+  return false;
+}
+
 // ===== world: beach =====
-const colliders=[]; // {x,z,r}
 const sandTex=canvasTex(512,512,(g,w,h)=>{g.fillStyle='#f0d488';g.fillRect(0,0,w,h);for(let i=0;i<9000;i++){g.fillStyle=['#e8c975','#f7e3a0','#d9b95f','#fff3c4'][i%4];g.fillRect(Math.random()*w,Math.random()*h,2,2);}});
 sandTex.wrapS=sandTex.wrapT=THREE.RepeatWrapping; sandTex.repeat.set(20,9);
-// dry sand ends AT the shoreline (z=19) — it used to run 24m out over the water, which read as desert
-const sand=new THREE.Mesh(new THREE.PlaneGeometry(340,80),new THREE.MeshStandardMaterial({map:sandTex,roughness:.95}));
-sand.rotation.x=-Math.PI/2; sand.position.set(0,0,-21); sand.receiveShadow=true; scene.add(sand);
-// wet sand band where waves reach + deep seabed far below the lowest wave trough (never breaks the surface)
-const wet=new THREE.Mesh(new THREE.PlaneGeometry(340,10),new THREE.MeshStandardMaterial({color:0xd8b26e,roughness:.45}));
-wet.rotation.x=-Math.PI/2; wet.position.set(0,.012,15); wet.receiveShadow=true; scene.add(wet);
-const shelf=new THREE.Mesh(new THREE.PlaneGeometry(340,110),new THREE.MeshStandardMaterial({color:0x0e6d9c,roughness:.9}));
-shelf.rotation.x=-Math.PI/2; shelf.position.set(0,-1.25,68); scene.add(shelf);
-// ocean
-const oceanMat=new THREE.MeshStandardMaterial({color:0x1193c9,roughness:.48,metalness:0,transparent:true,opacity:.94,emissive:0x073a55,emissiveIntensity:.3});
-const ocean=new THREE.Mesh(new THREE.PlaneGeometry(340,96,36,14),oceanMat);
-ocean.rotation.x=-Math.PI/2; ocean.position.set(0,-.14,62); scene.add(ocean);
-const oceanBase=ocean.geometry.attributes.position.array.slice();
-// wavy foam lines crawling up the shore
-const foams=[];
-for(let i=0;i<4;i++){
-  const geo=new THREE.PlaneGeometry(340,1.5,72,1); const gp=geo.attributes.position;
-  for(let v=0;v<gp.count;v++){const px=gp.getX(v); gp.setY(v,gp.getY(v)+Math.sin(px*.16+i*2)*.5+Math.sin(px*.045+i)*.8);}
-  geo.computeVertexNormals();
-  const f=new THREE.Mesh(geo,mat(0xffffff,.35,0,{transparent:true,opacity:.8})); f.rotation.x=-Math.PI/2;
-  f.position.set(0,.03+i*.004,16.8+i*1.9); f.userData.baseZ=16.8+i*1.9; scene.add(f); foams.push(f);
-}
-// rolling wave bands out at sea
-const waveBands=[];
-for(let i=0;i<5;i++){const w=new THREE.Mesh(new THREE.PlaneGeometry(340,.55),mat(0xffffff,.4,0,{transparent:true,opacity:.22}));w.rotation.x=-Math.PI/2;w.position.set(0,.09,26+i*11);scene.add(w);waveBands.push(w);}
+// shoreline: gently wobbly, and the seabed is a real slope that dips under the water. Mirrored in the water shader.
+const shoreZ=x=>15.1+Math.sin(x*.11)*.7+Math.sin(x*.037+1.7)*1.1+Math.sin(x*.27+.5)*.25;
+const seaZ=x=>shoreZ(x)+.4; // where the mean waterline sits = gameplay boundary for "in the ocean"
+const inSea=(x,z)=>z>seaZ(x);
+const _q=u=>u<=0?0:u<1?u*u*.5:u-.5;
+const bedY=(x,z)=>Math.max(-1.45,-.09*_q(z-shoreZ(x)+1.2));
+// dry sand (flat) up to z=9, then the sloped shore/seabed mesh takes over
+const sand=new THREE.Mesh(new THREE.PlaneGeometry(340,70),new THREE.MeshStandardMaterial({map:sandTex,roughness:.95}));
+sand.rotation.x=-Math.PI/2; sand.position.set(0,0,-26); sand.receiveShadow=true; scene.add(sand);
+{const bedMesh=(Z0,Z1,NX,NZ,material,tinted)=>{
+   const geo=new THREE.PlaneGeometry(340,Z1-Z0,NX,NZ); geo.rotateX(-Math.PI/2); geo.translate(0,0,(Z0+Z1)/2);
+   const pa=geo.attributes.position, col=new Float32Array(pa.count*3);
+   for(let i=0;i<pa.count;i++){const x=pa.getX(i),z=pa.getZ(i),d=z-shoreZ(x);pa.setY(i,bedY(x,z));
+    const wet=smoothstep01((d+2.4)/2.0), deep=smoothstep01(d/9);   // dry -> wet sand at the waterline -> slightly cooler seabed
+    col[i*3]=lerp(1,.8,wet)*lerp(1,.78,deep);col[i*3+1]=lerp(1,.74,wet)*lerp(1,.9,deep);col[i*3+2]=lerp(1,.62,wet)*lerp(1,.95,deep);}
+   if(tinted)geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+   geo.computeVertexNormals(); const m=new THREE.Mesh(geo,material); m.receiveShadow=tinted; scene.add(m); return m;};
+ const shoreTex=sandTex.clone(); shoreTex.needsUpdate=true; shoreTex.repeat.set(20,2.6);
+ bedMesh(9,34,85,25,new THREE.MeshStandardMaterial({map:shoreTex,vertexColors:true,roughness:.9}),true); // the beach slope and shallows
+ bedMesh(34,122,40,22,new THREE.MeshBasicMaterial({color:0x8fae9c}),false);} // deep seabed: always under >1.4 m of water, so it gets a cheap flat material
+// ocean: all wave motion, shading, depth colour and foam happen in this shader (no per-frame CPU vertex loop)
+// tiny random texture = cheap value noise for ripples and foam (bilinear filtering smooths it; far cheaper than hash noise per pixel)
+const _noiseTex=(()=>{const n=128,d=new Uint8Array(n*n*4);for(let i=0;i<d.length;i++)d[i]=Math.random()*255;const t=new THREE.DataTexture(d,n,n,THREE.RGBAFormat);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.magFilter=t.minFilter=THREE.LinearFilter;t.needsUpdate=true;return t;})();
+const _skyCol=(r,g,b)=>new THREE.Color().setRGB(r,g,b,THREE.SRGBColorSpace);
+const SEA_GLSL=`
+float shoreZ(float x){return 15.1+sin(x*.11)*.7+sin(x*.037+1.7)*1.1+sin(x*.27+.5)*.25;}
+float qr(float u){return u<=0.?0.:(u<1.?u*u*.5:u-.5);}
+float bedY(vec2 p){return max(-1.45,-.09*qr(p.y-shoreZ(p.x)+1.2));}
+vec3 wv(vec2 p,vec2 dir,float k,float amp,float sp,float t){float ph=k*dot(p,dir)+sp*t;return vec3(amp*sin(ph),amp*k*cos(ph)*dir.x,amp*k*cos(ph)*dir.y);}
+`;
+const oceanMat=new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,fog:true,
+  uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{
+    uTime:{value:0},uNoise:{value:_noiseTex},
+    uShallow:{value:_skyCol(.26,.86,.80)},uMid:{value:_skyCol(.08,.66,.82)},uDeep:{value:_skyCol(.03,.30,.62)},
+    uSkyH:{value:_skyCol(.98,.93,.78)},uSkyZ:{value:_skyCol(.25,.72,.95)},uFoam:{value:_skyCol(1,1,1)},uSunCol:{value:_skyCol(1,.95,.8)},
+    uSunDir:{value:new THREE.Vector3(-28,42,22).normalize()}}]),
+  vertexShader:`
+    uniform float uTime; varying vec3 vWorld; varying vec3 vN; varying float vD;
+    #include <fog_pars_vertex>
+    ${SEA_GLSL}
+    void main(){
+      vec3 p=position; float d=p.z-shoreZ(p.x); float calm=smoothstep(0.,6.,d);
+      float level=-.10+.05*sin(uTime*.8);
+      vec3 w=wv(p.xz,normalize(vec2(.15,1.)),.52,.11,1.1,uTime)+wv(p.xz,normalize(vec2(-.6,.8)),.9,.06,1.5,uTime)+wv(p.xz,normalize(vec2(.8,.5)),1.9,.025,2.2,uTime);
+      p.y=level+w.x*calm;
+      vN=normalize(vec3(-w.y*calm,1.,-w.z*calm)); vD=d;
+      vWorld=p;
+      vec4 mvPosition=viewMatrix*vec4(p,1.);
+      gl_Position=projectionMatrix*mvPosition;
+      #include <fog_vertex>
+    }`,
+  fragmentShader:`
+    uniform float uTime; uniform sampler2D uNoise; uniform vec3 uShallow,uMid,uDeep,uSkyH,uSkyZ,uFoam,uSunCol,uSunDir; varying vec3 vWorld; varying vec3 vN; varying float vD;
+    #include <fog_pars_fragment>
+    ${SEA_GLSL}
+    vec4 nz(vec2 p){return texture2D(uNoise,p*(1./128.));}
+    void main(){
+      vec2 p=vWorld.xz; float d=vD;
+      float depth=vWorld.y-max(-1.45,-.09*qr(d+1.2));
+      if(depth<=0.) discard;
+      vec3 N=normalize(vN); // swell normal from the vertex shader; fine ripples come from the noise texture below
+      vec2 n1=nz(p*1.9+vec2(uTime*.35,uTime*.2)).rg-.5;
+      N=normalize(N+vec3(n1.x,0.,n1.y)*.12);
+      vec3 V=normalize(cameraPosition-vWorld);
+      float ndv=clamp(dot(N,V),0.,1.);
+      // body colour: pale turquoise in the shallows, deeper blue with depth and distance from shore
+      vec3 body=mix(uShallow,uMid,smoothstep(.05,1.2,depth));
+      body=mix(body,uDeep,smoothstep(3.,34.,d));
+      body*=.82+.28*max(dot(N,uSunDir),0.);
+      // fresnel sky reflection
+      vec3 R=reflect(-V,N);
+      vec3 sky=mix(uSkyH,uSkyZ,smoothstep(-.05,.55,R.y));
+      float fres=clamp(.03+.62*pow(1.-ndv,4.),0.,.62);
+      vec3 col=mix(body,sky,fres);
+      float alpha=mix(.22,.97,smoothstep(0.,1.0,depth));
+      alpha=mix(alpha,1.,fres*.45);
+      // soft sun specular + glitter
+      vec3 H=normalize(uSunDir+V);
+      float sp=pow(max(dot(N,H),0.),240.)*2.2+pow(max(dot(N,H),0.),38.)*.14;
+      col+=uSunCol*sp; alpha=max(alpha,clamp(sp,0.,1.));
+      // shore foam: lacy swash at the waterline + a few soft foam lines rolling in
+      float fn=nz(p*vec2(1.2,2.0)+vec2(uTime*.06,uTime*.1)).b*.6+nz(p*4.+vec2(uTime*.12,-uTime*.08)).a*.4;
+      float edge=1.-smoothstep(0.,.16+.3*fn,depth);
+      float saw=fract(d*.085+uTime*.045);
+      float crest=exp(-pow((saw-.5)/.09,2.));
+      float lace=smoothstep(.4,.62,nz(p*vec2(.9,1.6)+vec2(uTime*.2,uTime*.12)).r);
+      float lines=crest*lace*(1.-smoothstep(4.,18.,d))*smoothstep(.5,2.5,d);
+      float foam=clamp(edge*(.7+.5*fn)+lines*.75,0.,1.);
+      col=mix(col,uFoam,foam*.9); alpha=max(alpha,foam*.92);
+      gl_FragColor=vec4(col,alpha);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      #include <fog_fragment>
+    }`
+});
+const ocean=new THREE.Mesh((()=>{const g=new THREE.PlaneGeometry(340,114,170,57);g.rotateX(-Math.PI/2);g.translate(0,0,63);return g;})(),oceanMat);
+ocean.frustumCulled=false; scene.add(ocean);
 // sand detail: tonal patches, shells, starfish
 {const patchCols=[0xe6c87a,0xf5df9e,0xdec084];
- for(let i=0;i<26;i++){const p=new THREE.Mesh(new THREE.CircleGeometry(rand(1.2,3.4),18),new THREE.MeshStandardMaterial({color:patchCols[i%3],roughness:1,transparent:true,opacity:.5}));p.rotation.x=-Math.PI/2;p.rotation.z=rand(0,3);p.scale.y=rand(.5,.8);p.position.set(rand(-48,48),.008,rand(-36,13));p.receiveShadow=true;scene.add(p);}
+ for(let i=0;i<26;i++){const p=new THREE.Mesh(new THREE.CircleGeometry(rand(1.2,3.4),18),new THREE.MeshStandardMaterial({color:patchCols[i%3],roughness:1,transparent:true,opacity:.5}));p.rotation.x=-Math.PI/2;p.rotation.z=rand(0,3);p.scale.y=rand(.5,.8);p.position.set(rand(-48,48),.008,rand(-36,11));p.receiveShadow=true;scene.add(p);}
  const shellCols=[0xfff1e6,0xffb4a2,0xf9c6d3,0xffffff];
- for(let i=0;i<34;i++){const s=sph(rand(.09,.17),mat(shellCols[i%4],.5),rand(-48,48),.05,rand(-34,15),10,8);s.scale.y=.45;s.castShadow=false;scene.add(s);}
- for(let i=0;i<7;i++){const st=new THREE.Group();st.position.set(rand(-40,40),.06,rand(-30,13));st.rotation.y=rand(0,3);for(let a=0;a<5;a++){const arm=new THREE.Mesh(new THREE.ConeGeometry(.09,.42,6),mat(0xff8c42,.7));arm.rotation.z=Math.PI/2;arm.rotation.y=-a/5*Math.PI*2;arm.translateX(.18);arm.scale.y=.5;st.add(arm);}scene.add(st);}
+ for(let i=0;i<34;i++){const s=sph(rand(.09,.17),mat(shellCols[i%4],.5),rand(-48,48),.05,rand(-34,12),10,8);s.scale.y=.45;s.castShadow=false;scene.add(s);}
+ for(let i=0;i<7;i++){const st=new THREE.Group();st.position.set(rand(-40,40),.06,rand(-30,12));st.rotation.y=rand(0,3);for(let a=0;a<5;a++){const arm=new THREE.Mesh(new THREE.ConeGeometry(.09,.42,6),mat(0xff8c42,.7));arm.rotation.z=Math.PI/2;arm.rotation.y=-a/5*Math.PI*2;arm.translateX(.18);arm.scale.y=.5;st.add(arm);}scene.add(st);}
 }
 // dune mounds + grass tufts along the back (north)
 for(let i=0;i<9;i++){const d=sph(rand(4,8),mat(0xeccf7d,.95),-55+i*13+rand(-2,2),-1.5,-46+rand(-2,2));d.scale.y=.38;d.castShadow=false;scene.add(d);}
@@ -86,14 +208,24 @@ function bonfire(x,z){
   pool.rotation.x=-Math.PI/2; pool.position.y=.06; g.add(pool);
   const fm=[new THREE.MeshStandardMaterial({color:0x7dd3fc,emissive:0x38bdf8,emissiveIntensity:.9,roughness:.2,transparent:true,opacity:.75}),new THREE.MeshStandardMaterial({color:0xe0f2fe,emissive:0x7dd3fc,emissiveIntensity:.8,roughness:.2,transparent:true,opacity:.65})];
   for(let i=0;i<3;i++){const f=new THREE.Mesh(new THREE.ConeGeometry(.22,rand(1.1,1.6),8),fm[i%2]);f.position.set(rand(-.25,.25),.8,rand(-.25,.25));g.add(f);bonfireFlames.push({f,ph:rand(0,6)});}
-  colliders.push({x,z,r:.95});
+  addCircle(x,z,1.25,.55); // ring of rocks around the vent
 }
 [-36,-18,-2,18,36].forEach(x=>bonfire(x,11.5));
-// wooden pier reaching into the sea (east side)
-{const g=new THREE.Group(); g.position.set(38,0,26); const wm=mat(0x9a7448,.85), dm=mat(0xb08954,.85);
- for(let i=0;i<9;i++){g.add(box(3.4,.18,1.1,dm,0,1.15,-12+i*3));[-1.5,1.5].forEach(px=>g.add(cyl(.14,.14,2.4,wm,px,.2,-12+i*3,8)));}
- [-1.65,1.65].forEach(px=>{g.add(box(.09,.09,25,wm,px,2.05,0));for(let i=0;i<7;i++)g.add(box(.08,.95,.08,wm,px,1.6,-11+i*3.7));});
- scene.add(g);}
+// wooden pier reaching into the sea (east side): one continuous deck on stilts, so you can walk underneath it between the posts
+const PIER={x:38,z:26,len:25,w:3.6,bottom:2.25};
+{const g=new THREE.Group(); g.position.set(PIER.x,0,PIER.z); const wm=mat(0x8a6a40,.9);
+ const plankTex=canvasTex(64,32,(c,w,h)=>{c.fillStyle='#b08954';c.fillRect(0,0,w,h);for(let i=0;i<260;i++){c.fillStyle=['#a37d49','#bb955d','#9d7842'][i%3];c.fillRect(Math.random()*w,Math.random()*(h-3),rand(6,22),1);}c.fillStyle='#5e4527';c.fillRect(0,h-3,w,3);});
+ plankTex.wrapS=plankTex.wrapT=THREE.RepeatWrapping; plankTex.repeat.set(1,PIER.len/.5);
+ const deck=box(PIER.w,.2,PIER.len,new THREE.MeshStandardMaterial({map:plankTex,roughness:.85}),0,2.52,0); g.add(deck); // planks (one textured slab: cheap to draw)
+ // merged wood parts (few draw calls, same look)
+ const merge=(parts)=>{const ms=new THREE.Mesh(mergeGeometries(parts),wm);ms.castShadow=true;ms.receiveShadow=true;return ms;};
+ const bx=(w,h,d,x,y,z)=>new THREE.BoxGeometry(w,h,d).translate(x,y,z);
+ const under=[...[-1.25,1.25].map(px=>bx(.2,.26,PIER.len,px,2.3,0))]; // stringers under the planks
+ const rails=[];
+ [-1.72,1.72].forEach(px=>{rails.push(bx(.1,.08,PIER.len,px,3.58,0),bx(.06,.06,PIER.len,px,3.1,0));for(let i=0;i<13;i++)rails.push(bx(.09,1.05,.09,px,3.1,-12+i*2));});
+ for(let i=0;i<9;i++)[-1.55,1.55].forEach(px=>{under.push(new THREE.CylinderGeometry(.15,.15,4,8).translate(px,.4,-12+i*3));addCircle(PIER.x+px,PIER.z-12+i*3,.2,2.4);}); // posts run down into the seabed
+ const sub=merge(under); g.add(sub,merge(rails)); scene.add(g); addObstacle(deck,sub);
+}
 // sailboats drifting on the horizon
 const sailboats=[];
 function sailboat(x,z,sailCol,spd){
@@ -120,22 +252,33 @@ function palm(x,z,lean=0.25,s=1){
   const top=V3(lean*3,4.7,0);
   for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const leaf=new THREE.Mesh(new THREE.PlaneGeometry(3.6,.6,6,1),leafMat);const pos=leaf.geometry.attributes.position;for(let v=0;v<pos.count;v++){const px=pos.getX(v);pos.setZ(v,-Math.pow(Math.max(0,px),2)*.22);}leaf.geometry.computeVertexNormals();const dir=V3(Math.cos(a),0,Math.sin(a));leaf.position.copy(top).addScaledVector(dir,1.6);leaf.position.y+=.18;leaf.rotation.order='YXZ';leaf.rotation.y=-a;leaf.rotation.x=-Math.PI/2+.3;leaf.castShadow=true;g.add(leaf);}
   g.add(sph(.24,cocoMat,top.x+.3,top.y-.3,.15),sph(.22,cocoMat,top.x-.25,top.y-.3,-.1));
-  g.scale.setScalar(s); g.rotation.y=rand(0,6.28); scene.add(g); colliders.push({x,z,r:.55});
+  g.scale.setScalar(s); g.rotation.y=rand(0,6.28); scene.add(g); g.updateMatrixWorld(true); addObstacle(trunk);
+  // trunk collider follows the lean: two capsules that block walkers, two upper ones that only stop shots
+  const at=h=>{let best=null,bd=1e9;for(let i=0;i<=60;i++){const p=curve.getPoint(i/60),dd=Math.abs(p.y-h);if(dd<bd){bd=dd;best=p;}}return g.localToWorld(best.clone());};
+  const hs=[0,1.2,2.4,3.5,4.6], tp=hs.map(at);
+  for(let i=0;i<4;i++)addSeg(tp[i].x,tp[i].z,tp[i+1].x,tp[i+1].z,.27*s,hs[i+1]*s,hs[i]*s,i>=2);
 }
 [[-20,-28],[-32,-12],[-26,8],[24,-30],[34,-14],[28,6],[-8,-36],[12,-34],[-42,-22],[44,-24],[6,10],[-14,12]].forEach(([x,z])=>palm(x,z,rand(.1,.45)*(Math.random()<.5?-1:1),rand(.9,1.25)));
 // umbrellas + towels + beach balls
 const umbCols=[0xff4d6d,0xffb020,0x00b4d8,0x7c3aed,0xff6b35];
-function umbrella(x,z,c){const g=new THREE.Group();g.position.set(x,0,z);const pole=cyl(.05,.05,2.6,mat(0xdddddd,.4,.6),0,1.3,0);g.add(pole);const top=new THREE.Mesh(new THREE.ConeGeometry(1.9,.65,10,1,true),mat(c,.6,0,{side:THREE.DoubleSide}));top.position.y=2.6;top.castShadow=true;g.add(top);g.rotation.z=.12;scene.add(g);colliders.push({x,z,r:.35});
+function umbrella(x,z,c){const g=new THREE.Group();g.position.set(x,0,z);const pole=cyl(.05,.05,2.6,mat(0xdddddd,.4,.6),0,1.3,0);g.add(pole);const top=new THREE.Mesh(new THREE.ConeGeometry(1.9,.65,10,1,true),mat(c,.6,0,{side:THREE.DoubleSide}));top.position.y=2.6;top.castShadow=true;g.add(top);g.rotation.z=.12;scene.add(g);g.updateMatrixWorld(true);const pt=g.localToWorld(V3(0,2.1,0));addSeg(x,z,pt.x,pt.z,.2,2.6);
+  const cap=new THREE.Mesh(new THREE.CircleGeometry(1.9,10),new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));cap.rotation.x=-Math.PI/2;cap.position.y=2.275;cap.visible=false;g.add(cap);cap.updateMatrixWorld(true); // invisible lid so the camera can't slip up inside the hollow canopy
+  addObstacle(pole,top,cap);
   const tow=new THREE.Mesh(new THREE.PlaneGeometry(1.1,2),mat(c,.9));tow.rotation.x=-Math.PI/2;tow.rotation.z=rand(0,3);tow.position.set(x+1.2,.03,z+.6);tow.receiveShadow=true;scene.add(tow);}
 [[-12,-6],[14,-2],[-4,6],[20,10],[-24,2]].forEach(([x,z],i)=>umbrella(x,z,umbCols[i]));
-[[-18,-9],[22,-6],[-11,9],[16,-24],[-28,-18]].forEach(([x,z],i)=>{const b=sph(.42,mat(umbCols[i],.25),x,.42,z);scene.add(b);});
+const balls=[]; // kickable beach balls
+[[-18,-9],[22,-6],[-11,9],[16,-24],[-28,-18]].forEach(([x,z],i)=>{const b=sph(.42,mat(umbCols[i],.25),x,.42,z);scene.add(b);balls.push({m:b,vx:0,vz:0});});
 // volleyball net
-{const g=new THREE.Group();g.position.set(-16,0,-16);g.rotation.y=.5;const pm=mat(0xffffff,.5,.4);g.add(cyl(.06,.06,2.4,pm,-3,1.2,0),cyl(.06,.06,2.4,pm,3,1.2,0));const net=new THREE.Mesh(new THREE.PlaneGeometry(6,.9),mat(0xffffff,.8,0,{transparent:true,opacity:.45,side:THREE.DoubleSide}));net.position.y=1.85;g.add(net);scene.add(g);colliders.push({x:-16,z:-16,r:1.2});}
+{const g=new THREE.Group();g.position.set(-16,0,-16);g.rotation.y=.5;const pm=mat(0xffffff,.5,.4);g.add(cyl(.06,.06,2.4,pm,-3,1.2,0),cyl(.06,.06,2.4,pm,3,1.2,0));const net=new THREE.Mesh(new THREE.PlaneGeometry(6,.9),mat(0xffffff,.8,0,{transparent:true,opacity:.45,side:THREE.DoubleSide}));net.position.y=1.85;g.add(net);scene.add(g);g.updateMatrixWorld(true);const pa=g.localToWorld(V3(-3,0,0)),pb=g.localToWorld(V3(3,0,0));
+ addCircle(pa.x,pa.z,.2,2.4);addCircle(pb.x,pb.z,.2,2.4);addSeg(pa.x,pa.z,pb.x,pb.z,.1,2.3,1.4);addObstacle(g.children[0],g.children[1]);}
 // lifeguard tower
-{const g=new THREE.Group();g.position.set(17,0,-18);g.rotation.y=-.4;const wm=mat(0xf4f4f4,.7),rm=mat(0xe63946,.6);[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([x,z])=>{const l=box(.18,3,.18,wm,x,1.5,z);l.rotation.z=x*.12;l.rotation.x=-z*.12;g.add(l);});g.add(box(2.8,.18,2.8,wm,0,3,0));g.add(box(2.4,1.6,2.2,wm,0,3.9,0));const roof=new THREE.Mesh(new THREE.ConeGeometry(2.2,.8,4),rm);roof.position.y=5.1;roof.rotation.y=Math.PI/4;roof.castShadow=true;g.add(roof);g.add(box(2.45,.9,.08,mat(0x87ceeb,.2,.2),0,4.05,1.12));scene.add(g);colliders.push({x:17,z:-18,r:2});}
+{const g=new THREE.Group();g.position.set(17,0,-18);g.rotation.y=-.4;const wm=mat(0xf4f4f4,.7),rm=mat(0xe63946,.6);[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([x,z])=>{const l=box(.18,3,.18,wm,x,1.5,z);l.rotation.z=x*.12;l.rotation.x=-z*.12;g.add(l);});g.add(box(2.8,.18,2.8,wm,0,3,0));g.add(box(2.4,1.6,2.2,wm,0,3.9,0));const roof=new THREE.Mesh(new THREE.ConeGeometry(2.2,.8,4),rm);roof.position.y=5.1;roof.rotation.y=Math.PI/4;roof.castShadow=true;g.add(roof);g.add(box(2.45,.9,.08,mat(0x87ceeb,.2,.2),0,4.05,1.12));scene.add(g);g.updateMatrixWorld(true);
+ // four slanted legs are what touch the ground (you can walk under the cabin between them)
+ for(let i=0;i<4;i++){const bp=g.children[i].localToWorld(V3(0,-1.5,0));addCircle(bp.x,bp.z,.28,3);}
+ g.children.forEach(m=>addObstacle(m));}
 // rocks + crates
-[[ -34,10],[36,12],[-6,-24],[8,-8]].forEach(([x,z])=>{const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,1.3)),mat(0x8d99ae,.9));r.position.set(x,.5,z);r.castShadow=true;r.receiveShadow=true;scene.add(r);colliders.push({x,z,r:1.1});});
-[[4,-20],[5.2,-20],[-22,-26]].forEach(([x,z])=>{scene.add(box(1,1,1,mat(0xb08954,.85),x,.5,z));colliders.push({x,z,r:.8});});
+[[ -34,10],[36,12],[-6,-24],[8,-8]].forEach(([x,z])=>{const rr=rand(.7,1.3),r=new THREE.Mesh(new THREE.DodecahedronGeometry(rr),mat(0x8d99ae,.9));r.position.set(x,.5,z);r.castShadow=true;r.receiveShadow=true;scene.add(r);addCircle(x,z,rr*.88,.5+rr);addObstacle(r);});
+[[4,-20],[5.2,-20],[-22,-26]].forEach(([x,z])=>{const cr=box(1,1,1,mat(0xb08954,.85),x,.5,z);scene.add(cr);addBox(x,z,.5,.5,0,1);addObstacle(cr);});
 // ===== solar charge: wandering sun pools (patches of concentrated sunlight) =====
 const refillSpots=[]; // {x,z,r,kind:'sun'} — sun pools mutate x/z as they drift
 const beaconAnims=[]; // {mat,sprite,baseY,ring,phase}
@@ -439,7 +582,7 @@ function addEnemy(kind,x,z){
   const wv=Math.max(1,S.wave||1);
   const hp=def.hp*(1+(wv-1)*.18);
   const e={...m,kind,def,pos:m.g.position,hp,maxHp:hp,speed:def.speed*(1+(wv-1)*.05),
-    atkCd:0,shootCd:rand(1,2.4),phase:rand(0,6),wet:0,state:'chase',stateT:0,abCd:kind===3?rand(.4,1):kind===1?rand(.8,1.6):rand(1.4,2.8),
+    side:Math.random()<.5?1:-1,atkCd:0,shootCd:rand(1,2.4),phase:rand(0,6),wet:0,state:'chase',stateT:0,abCd:kind===3?rand(.4,1):kind===1?rand(.8,1.6):rand(1.4,2.8),
     burstLeft:0,burstT:0,healCd:rand(2,3.5),fuse:-1,boost:1,dashX:0,dashZ:0,
     shieldHp:(def.shield||0)*(1+(wv-1)*.15),maxShield:(def.shield||0)*(1+(wv-1)*.15)};
   enemies.push(e);
@@ -598,6 +741,7 @@ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updat
 const _tip=new THREE.Vector3(), _dir=new THREE.Vector3(), _target=new THREE.Vector3();
 const _v1=new THREE.Vector3(), _v2=new THREE.Vector3(), _v3=new THREE.Vector3(); let _frame=0;
 const _UP=new THREE.Vector3(0,1,0), _desired=new THREE.Vector3(), _look=new THREE.Vector3();
+const _camDir=new THREE.Vector3(), _camRay=new THREE.Raycaster(); let _camFrac=1;
 const EL={hpBar:$('hpBar'),hpTxt:$('hpTxt'),waterBar:$('waterBar'),waterTxt:$('waterTxt'),score:$('score'),combo:$('combo'),left:$('enemiesLeft'),hint:$('hint'),power:$('powerPill'),ocean:$('oceanWarn'),cold:$('coldVig')};
 let _hudFrame=-9, _ftAcc=0, _ftN=0;
 function shoot(dt){
@@ -638,6 +782,17 @@ function spitFire(e){
   fireballs.push({m,v,life:3});
   beep(320,.14,'sawtooth',.035,-160);
 }
+const PLAYER_R=.45;
+const _bn={x:0,z:0}, _en={x:0,z:0};
+function updateBalls(dt){ // beach balls: kick them by running into them; they roll, bounce off props and stay near the shore
+  for(const b of balls){const p=b.m.position,dx=p.x-player.pos.x,dz=p.z-player.pos.z,d=Math.hypot(dx,dz);
+    if(d<.42+PLAYER_R&&d>1e-4&&player.pos.y<.9){const k=Math.max(3.2,player.speedNow*1.25);b.vx=dx/d*k;b.vz=dz/d*k;p.x=player.pos.x+dx/d*(.42+PLAYER_R);p.z=player.pos.z+dz/d*(.42+PLAYER_R);}
+    if(b.vx*b.vx+b.vz*b.vz<.0004){b.vx=b.vz=0;}
+    else{p.x+=b.vx*dt;p.z+=b.vz*dt;const f=Math.exp(-1.7*dt);b.vx*=f;b.vz*=f;
+      if(resolveCollision(p,.42,_bn)){const dot=b.vx*_bn.x+b.vz*_bn.z;if(dot<0){b.vx-=1.6*dot*_bn.x;b.vz-=1.6*dot*_bn.z;}}
+      p.x=clamp(p.x,-52,52); const lim=seaZ(p.x)+.4; if(p.z>lim){p.z=lim;b.vz=-Math.abs(b.vz)*.5;}
+      b.m.rotation.x+=b.vz*dt/.42; b.m.rotation.z-=b.vx*dt/.42;}}
+}
 // ===== main loop =====
 const clock=new THREE.Clock();
 let waveClearT=0, spawnPending=false;
@@ -647,12 +802,7 @@ function animate(){
   requestAnimationFrame(animate);
   try{
   const dt=Math.min(clock.getDelta(),.05); S.time+=dt; const t=S.time;
-  // ocean waves
-  const op=ocean.geometry.attributes.position;
-  for(let i=0;i<op.count;i++){const x=oceanBase[i*3],y=oceanBase[i*3+1];op.setZ(i,Math.sin(x*.18+t*1.6)*.12+Math.cos(y*.22+t*1.2)*.09);}
-  op.needsUpdate=true; // normals left as-is: flat-lit water, skips a full recompute every frame
-  foams.forEach((f,i)=>{f.position.z=f.userData.baseZ+Math.sin(t*.9+i*1.1)*1.1;f.material.opacity=.55+Math.sin(t*.9+i)*.25;});
-  waveBands.forEach((w,i)=>{w.position.z-=dt*1.1; if(w.position.z<21)w.position.z=76; w.material.opacity=.14+Math.sin(t*1.3+i*2)*.07;});
+  oceanMat.uniforms.uTime.value=t; // waves, foam and colour all run in the water shader
   sailboats.forEach(s=>{s.g.position.x+=s.spd*dt; if(s.g.position.x>120)s.g.position.x=-120; if(s.g.position.x<-120)s.g.position.x=120; s.g.position.y=Math.sin(t*1.2+s.ph)*.18; s.g.rotation.z=Math.sin(t*.9+s.ph)*.05; s.g.rotation.y=s.spd>0?.15:Math.PI-.15;});
   bonfireFlames.forEach(o=>{const sc=1+Math.sin(t*11+o.ph)*.22; o.f.scale.set(sc,sc*(1+Math.sin(t*13+o.ph)*.18),sc);});
   clouds.forEach((c,i)=>{c.position.x+=dt*(.4+i*.07); if(c.position.x>110)c.position.x=-110;});
@@ -697,11 +847,13 @@ function animate(){
   if(player.sliding>0){player.vel.x+=fwd.x*18*dt; player.vel.z+=fwd.z*18*dt;}
   // gravity / jump
   player.vy-=22*dt; player.pos.y+=player.vy*dt;
+  if(player.vy>0&&Math.abs(player.pos.x-PIER.x)<PIER.w/2&&Math.abs(player.pos.z-PIER.z)<PIER.len/2&&player.pos.y+1.85>PIER.bottom){player.pos.y=PIER.bottom-1.85;player.vy=0;} // head bump under the pier deck
   if(player.pos.y<=0){if(!player.onGround&&player.vy<-6)spawnP(player.pos.clone().add(V3(0,.1,0)),8,0xf0d488,1.6,.4,-3,1);player.pos.y=0;player.vy=0;player.onGround=true;player.jumps=0;}
   player.pos.x+=player.vel.x*dt; player.pos.z+=player.vel.z*dt;
   player.pos.x=clamp(player.pos.x,-52,52); player.pos.z=clamp(player.pos.z,-40,26);
   // colliders push-out
-  for(const c of colliders){const dx=player.pos.x-c.x,dz=player.pos.z-c.z,d=Math.hypot(dx,dz);if(d<c.r+.45&&d>0.001){player.pos.x=c.x+dx/d*(c.r+.45);player.pos.z=c.z+dz/d*(c.r+.45);}}
+  resolveCollision(player.pos,PLAYER_R);
+  updateBalls(dt);
   player.speedNow=Math.hypot(player.vel.x,player.vel.z);
   // player facing: aim/fire/move -> face camYaw forward; else face move dir
   let targetYaw;
@@ -712,9 +864,9 @@ function animate(){
   P.root.rotation.y+=dy*Math.min(1,dt*14);
   P.root.position.copy(player.pos);
   // wade: sink the model into the surf as he goes deeper, so he never walks on top of the sea
-  const wade=player.onGround?clamp((player.pos.z-15.5)/9,0,1)*.36:0;
+  const wade=player.onGround?clamp(-bedY(player.pos.x,player.pos.z)*.8,0,.6):0;
   P.root.position.y-=wade;
-  if(wade>0){blob.position.set(player.pos.x,.09,player.pos.z); blob.material.opacity=.1;}
+  if(wade>0){blob.position.set(player.pos.x,Math.max(bedY(player.pos.x,player.pos.z)+.02,-.06),player.pos.z); blob.material.opacity=.1;}
   else{blob.position.set(player.pos.x,.015,player.pos.z); blob.material.opacity=clamp(.28-player.pos.y*.04,.06,.28);}
   // run animation
   player.runPhase+=dt*(3+player.speedNow*1.55);
@@ -737,7 +889,7 @@ function animate(){
   }
   P.headG.rotation.x=camPitch*.35;
   // solar charge (S.water = charge %): sun pools charge fast, plain beach sun trickles, saltwater shorts the gun out
-  const inOcean=player.pos.z>15.5;
+  const inOcean=inSea(player.pos.x,player.pos.z);
   const spot=refillSpots.find(s=>Math.hypot(player.pos.x-s.x,player.pos.z-s.z)<s.r);
   const chargeRate=spot?58+(keys.KeyR?22:0):inOcean?-9:2.2;
   const beforeCharge=S.water;
@@ -771,23 +923,25 @@ function animate(){
 
   // --- bullets ---
   _frame++;
-  for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.life-=dt;b.v.y-=3.5*dt;b.m.position.addScaledVector(b.v,dt);
+  for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.life-=dt;b.v.y-=3.5*dt;const bx0=b.m.position.x,by0=b.m.position.y,bz0=b.m.position.z;b.m.position.addScaledVector(b.v,dt);
     let dead=b.life<=0||b.m.position.y<0;
+    if(!dead&&projectileHitsSolid(bx0,by0,bz0,b.m.position.x,b.m.position.y,b.m.position.z,b.r*.5)){b.m.position.copy(_hitP);spawnP(b.m.position,4,0x7dd3fc,1.4,.35,-4,1.4);dead=true;} // solid prop: bolt stops
     if(b.m.position.y<.05&&!dead){spawnP(b.m.position,4,0x7dd3fc,1.4,.35,-4,1.4);dead=true;}
     if(b.spin){b.m.rotation.x+=dt*9;b.m.rotation.y+=dt*7;}
     if((_frame+i)%3===0)spawnP(b.m.position,1,b.spin?0xffe23a:0xffb020,.25,.22,1,.4); // heat/sponge trail at 1/3 rate
     if(!dead)for(const e of enemies){if(e.dead)continue;const dx=b.m.position.x-e.pos.x,dy=b.m.position.y-(e.pos.y+.7*e.s),dz=b.m.position.z-e.pos.z,rr=.8*e.s+b.r; if(dx*dx+dy*dy+dz*dz<rr*rr){damageEnemy(e,b.dmg,b.m.position);dead=true;break;}}
     if(dead){_freeMesh(b.pool||_bPool,b.m);bullets.splice(i,1);}}
   // --- fireballs ---
-  for(let i=fireballs.length-1;i>=0;i--){const b=fireballs[i];b.life-=dt;b.m.position.addScaledVector(b.v,dt);if((_frame+i)%2===0)spawnP(b.m.position,1,0x38bdf8,.4,.3,-2,.6);
+  for(let i=fireballs.length-1;i>=0;i--){const b=fireballs[i];b.life-=dt;const fx0=b.m.position.x,fy0=b.m.position.y,fz0=b.m.position.z;b.m.position.addScaledVector(b.v,dt);if((_frame+i)%2===0)spawnP(b.m.position,1,0x38bdf8,.4,.3,-2,.6);
     let dead=b.life<=0||b.m.position.y<0;
+    if(!dead&&projectileHitsSolid(fx0,fy0,fz0,b.m.position.x,b.m.position.y,b.m.position.z,.1)){b.m.position.copy(_hitP);spawnP(b.m.position,10,0x38bdf8,2,.4,-3,2);dead=true;} // solid prop: spit splashes
     _v1.copy(player.pos);_v1.y+=1.1; if(b.m.position.distanceToSquared(_v1)<.56){hurtPlayer(11);spawnP(b.m.position,10,0x38bdf8,2,.4,-3,2);dead=true;}
     if(dead){_freeMesh(_fPool,b.m);fireballs.splice(i,1);}}
   // --- enemies AI ---
   let alive=0;
   for(const e of enemies){ if(e.dead)continue; alive++;
     // home turf: water monsters rehydrate (regen + haste) in the OCEAN only; sun pools dry them out — lure them onto dry sand and into the light
-    const inWater=e.pos.z>15.5;
+    const inWater=inSea(e.pos.x,e.pos.z);
     const inSun=refillSpots.some(s=>Math.hypot(e.pos.x-s.x,e.pos.z-s.z)<s.r);
     if(inWater&&e.hp<e.maxHp)e.hp=Math.min(e.maxHp,e.hp+5*dt);
     if(inSun){e.hp-=3.5*dt; e.wet=1; if(Math.random()<.16){_v3.copy(e.pos);_v3.y+=1;spawnP(_v3,2,0xffffff,1,.6,1.5,1.8);} if(e.hp<=0){killEnemy(e,true);continue;}}
@@ -835,8 +989,14 @@ function animate(){
     // separation (alloc-free)
     for(const o of enemies){if(o===e||o.dead)continue;_v2.copy(e.pos).sub(o.pos);_v2.y=0;const d2=_v2.lengthSq();if(d2<1.44&&d2>0.0001){const d=Math.sqrt(d2);e.pos.addScaledVector(_v2.normalize(),(1.2-d)*dt*2);}}
     e.pos.x=clamp(e.pos.x,-53,53); e.pos.z=clamp(e.pos.z,-41,20);
+    // props are solid for monsters too; if one blocks the way, slide along it toward whichever side heads for the player
+    if(resolveCollision(e.pos,.55*e.s,_en)&&mv>0){
+      const sd=-_en.z*mx+_en.x*mz; if(Math.abs(sd)>.25)e.side=sd>0?1:-1;
+      e.pos.x+=-_en.z*e.side*mv*dt*.9; e.pos.z+=_en.x*e.side*mv*dt*.9;
+      resolveCollision(e.pos,.55*e.s);
+    }
     e.g.rotation.y=Math.atan2(e.state==='dash'?e.dashX:dx,e.state==='dash'?e.dashZ:dz);
-    e.g.position.y=Math.abs(Math.sin(e.phase))*.14+e.lift;
+    e.g.position.y=Math.abs(Math.sin(e.phase))*.14+e.lift+Math.max(-.45,bedY(e.pos.x,e.pos.z)*.8);
     e.g.scale.setScalar(e.s*(1+Math.sin(e.phase*2)*.03)*(0.78+0.22*(e.hp/e.maxHp))*e.boost);
     e.flames.forEach((f,fi)=>{const sc=(1+Math.sin(t*11+fi*1.7)*.28)*(0.35+0.65*(e.hp/e.maxHp))*(1-e.wet*.4);f.scale.set(sc,sc*(1+Math.sin(t*13+fi)*.2),sc);});
     e.arms.forEach((a,ai)=>a.rotation.x=Math.sin(e.phase+ai*Math.PI)*.6-.4);
@@ -876,6 +1036,13 @@ function animate(){
   const target=_v3.copy(player.pos); target.y+=aimH-crouchAmt*.6;
   _desired.copy(target).addScaledVector(fwdCam,-aimDist).addScaledVector(rightCam,aimSide);
   _desired.y=Math.max(.55,_desired.y);
+  // camera collision: if a prop sits between Rene's head and the camera, pull in just in front of it (snap in, ease back out)
+  {_camDir.copy(_desired).sub(target); const full=_camDir.length(); let want=1;
+   if(full>.01){_camDir.divideScalar(full); _camRay.set(target,_camDir); _camRay.far=full+.3;
+     const h=_camRay.intersectObjects(camObstacles,false)[0];
+     if(h)want=clamp((h.distance-.3)/full,Math.min(1,.5/full),1);}
+   _camFrac=want<_camFrac?lerp(_camFrac,want,Math.min(1,dt*40)):lerp(_camFrac,want,Math.min(1,dt*3));
+   _desired.copy(target).addScaledVector(_camDir,full*_camFrac);}
   camera.position.lerp(_desired,Math.min(1,dt*18));
   if(S.shake>0){S.shake-=dt;camera.position.x+=rand(-1,1)*S.shake*.18;camera.position.y+=rand(-1,1)*S.shake*.18;}
   _look.copy(target).addScaledVector(fwdCam,9);
