@@ -135,7 +135,7 @@ function umbrella(x,z,c){const g=new THREE.Group();g.position.set(x,0,z);const p
 // rocks + crates
 [[ -34,10],[36,12],[-6,-24],[8,-8]].forEach(([x,z])=>{const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(.7,1.3)),mat(0x8d99ae,.9));r.position.set(x,.5,z);r.castShadow=true;r.receiveShadow=true;scene.add(r);colliders.push({x,z,r:1.1});});
 [[4,-20],[5.2,-20],[-22,-26]].forEach(([x,z])=>{scene.add(box(1,1,1,mat(0xb08954,.85),x,.5,z));colliders.push({x,z,r:.8});});
-// ===== refill stations: big loud buckets + wandering pools =====
+// ===== refill: beach only — wandering pools + the ocean =====
 const refillSpots=[]; // {x,z,r} — pools mutate x/z as they wander
 const beaconAnims=[]; // {mat,sprite,baseY,ring,phase}
 function makeLabel(main,sub='',scale=1){
@@ -157,17 +157,7 @@ function addBeacon(parent,x,z,{label,sub='',color=0x38bdf8,h=7,scale=1}={}){
   const sp=makeLabel(label,sub,scale); sp.position.set(x,2.7,z); parent.add(sp);
   const a={mat:bm,sprite:sp,baseY:2.7,ring,phase:rand(0,6)}; beaconAnims.push(a); return a;
 }
-function buildBucket(x,z){
-  const g=new THREE.Group(); scene.add(g);
-  const rim=new THREE.Mesh(new THREE.TorusGeometry(1.05,.14,10,28),mat(0xffd23a,.35)); rim.rotation.x=Math.PI/2; rim.position.set(x,1.24,z); rim.castShadow=true; g.add(rim);
-  g.add(cyl(1.02,.78,1.25,mat(0x0284c7,.35),x,.62,z,22));
-  g.add(cyl(.94,.94,.08,mat(0x7dd3fc,.15,0,{emissive:0x38bdf8,emissiveIntensity:.5}),x,1.26,z,22));
-  g.add(box(.16,1.0,.16,mat(0xffffff,.6),x-1.05,.9,z),box(.16,1.0,.16,mat(0xffffff,.6),x+1.05,.9,z));
-  addBeacon(g,x,z,{label:'💦 REFILL',sub:'stand here · or hold R',color:0x38bdf8,h:5.5,scale:1});
-  refillSpots.push({x,z,r:3.4,kind:'bucket'});
-}
-[[-9,13],[11,13.5],[0,-28]].forEach(([x,z])=>buildBucket(x,z));
-// ---- moving water pools: inflatable kiddie pools that wander the beach ----
+// ---- moving water pools: inflatable kiddie pools that wander the beach (the only refill spots besides the ocean) ----
 const pools=[];
 function buildPool(x,z,ringCol){
   const g=new THREE.Group(); g.position.set(x,0,z); scene.add(g);
@@ -176,11 +166,11 @@ function buildPool(x,z,ringCol){
   const water=new THREE.Mesh(new THREE.CircleGeometry(1.72,28),new THREE.MeshStandardMaterial({color:0x29b6e8,roughness:.12,transparent:true,opacity:.92,emissive:0x0a4a66,emissiveIntensity:.45}));
   water.rotation.x=-Math.PI/2; water.position.y=.46; g.add(water);
   const ball=sph(.3,mat(0xffd23a,.3),.7,.62,.4); g.add(ball);
-  addBeacon(g,0,0,{label:'💦 POOL',sub:'it wanders · hop in',color:0x2dd4bf,h:6,scale:.85});
+  addBeacon(g,0,0,{label:'💦 POOL',sub:'hop in to refill · it wanders',color:0x2dd4bf,h:6.5,scale:.95});
   const spot={x,z,r:3.0,kind:'pool'}; refillSpots.push(spot);
   pools.push({g,spot,water,ball,tx:x,tz:z,wait:rand(1,4),phase:rand(0,6)});
 }
-buildPool(-16,-4,0xff4d8d); buildPool(19,-12,0x00b4d8);
+buildPool(-16,-4,0xff4d8d); buildPool(19,-12,0x00b4d8); buildPool(-2,-27,0xffb020);
 function updatePoolsAndBeacons(dt,t){
   for(const a of beaconAnims){a.mat.opacity=.09+Math.sin(t*2.6+a.phase)*.04; a.sprite.position.y=a.baseY+Math.sin(t*2+a.phase)*.16; const s=1+Math.sin(t*2.2+a.phase)*.13; a.ring.scale.set(s,s,1); a.ring.material.opacity=.55+Math.sin(t*2.2+a.phase)*.3;}
   for(const p of pools){
@@ -727,7 +717,7 @@ function animate(){
     P.gun.rotation.x=Math.PI/2-.45; P.gun.position.set(0,-.36,.02);
   }
   P.headG.rotation.x=camPitch*.35;
-  // refill: ocean, buckets and wandering pools all fill you up just by standing in them; R fills faster
+  // refill: the ocean and the wandering beach pools fill you up just by standing in them; R fills faster
   const inOcean=player.pos.z>15.5;
   const spot=refillSpots.find(s=>Math.hypot(player.pos.x-s.x,player.pos.z-s.z)<s.r);
   if(inOcean||spot){
@@ -753,7 +743,7 @@ function animate(){
     S.hp-=drain*dt; player.hurtCd=Math.max(player.hurtCd,0); S.shake=Math.max(S.shake,.09);
     if(Math.random()<.3){_v3.set(player.pos.x+rand(-.6,.6),.35,player.pos.z+rand(-.6,.6));spawnP(_v3,2,0xbae6fd,1.6,.5,-3,2.2);}
     if(Math.random()<.04)beep(rand(180,260),.12,'sine',.035,-60);
-    if(S.hp<=0){S.hp=0; feed('🌊 The rip current got Rene!'); gameOver(false); $('endSub').textContent='The rip current dragged Rene under. Dip in the ocean for a quick refill, then get back to dry sand — roam the buckets and pools instead.';}
+    if(S.hp<=0){S.hp=0; feed('🌊 The rip current got Rene!'); gameOver(false); $('endSub').textContent='The rip current dragged Rene under. Dip in the ocean for a quick refill, then get back to dry sand — chase the wandering pools instead.';}
   }
   // slow hp regen after no hurt
   player.hurtCd-=dt; if(player.hurtCd<-4&&S.hp<100)S.hp=Math.min(100,S.hp+4*dt);
