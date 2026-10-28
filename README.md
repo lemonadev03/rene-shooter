@@ -8,6 +8,8 @@ A third-person beach shooter built with Three.js. You play Rene: a 3D model base
 
 Powerups drop around the beach (⚡ Rapid Soak, 💥 Mega Soak, 👟 Speed Soda, ❤️ +40 HP, 🧊 Deep Freeze). Refill at the glowing 💦 REFILL buckets, the wandering inflatable pools, or the ocean — but don't camp in the ocean: after a 4-second grace dip, the rip current drains HP harder the longer you stay in, so keep roaming the island.
 
+Eight monster types, each with its own trick: zigzag **Imps**; **Brutes** that ground-slam (jump to dodge); fireball **Spitters** (burst-fire on later waves); **Dashers** that telegraph then lunge; **Boomers** that light a fuse and explode up close; **Splitters** that pop into two imps; **Wardens** hiding behind breakable obsidian shields; and **Shamans** that heal their pack — kill them first. Waves ramp in count, HP, and speed across all five waves.
+
 ## Run
 
 ```bash

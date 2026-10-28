@@ -284,12 +284,24 @@ const blob=new THREE.Mesh(new THREE.CircleGeometry(.55,20),new THREE.MeshBasicMa
 // ===== FIRE MONSTERS =====
 const _flameMats=[new THREE.MeshStandardMaterial({color:0xff6a00,emissive:0xff5500,emissiveIntensity:2,roughness:.3,transparent:true,opacity:.95}),new THREE.MeshStandardMaterial({color:0xffd23a,emissive:0xffaa00,emissiveIntensity:2,roughness:.3,transparent:true,opacity:.9})];
 const _flameConeGeo=new THREE.ConeGeometry(.13,.5,7), _flameTopGeo=new THREE.ConeGeometry(.17,.66,7);
-function buildMonster(kind){ // 0 imp small, 1 brute big, 2 spitter
-  const s=kind===1?1.7:kind===2?1.15:1.0;
+// 0 imp · 1 brute(slam) · 2 spitter · 3 dasher · 4 exploder · 5 splitter · 6 shielded · 7 healer
+const MON=[
+  {name:'IMP',      s:1.0, body:0xf43f1e, belly:0xffc93a, hp:36,  speed:3.8, score:100, dmg:10},
+  {name:'BRUTE',    s:1.7, body:0xd92c12, belly:0xff9500, hp:175, speed:2.3, score:300, dmg:18},
+  {name:'SPITTER',  s:1.15,body:0xff8c1a, belly:0xffe23a, hp:62,  speed:2.8, score:175, dmg:9},
+  {name:'DASHER',   s:.92, body:0xffb020, belly:0xfff3a0, hp:34,  speed:4.7, score:150, dmg:11},
+  {name:'BOOMER',   s:1.12,body:0xb91c1c, belly:0xff6a00, hp:34,  speed:4.3, score:175, dmg:8},
+  {name:'SPLITTER', s:1.3, body:0xc026d3, belly:0xf0abfc, hp:95,  speed:2.9, score:225, dmg:12},
+  {name:'WARDEN',   s:1.25,body:0xe85d1f, belly:0xffc93a, hp:95,  speed:2.1, score:275, dmg:14, shield:55},
+  {name:'SHAMAN',   s:1.05,body:0x9333ea, belly:0xf5d0fe, hp:58,  speed:2.8, score:300, dmg:8},
+];
+function buildMonster(kind){
+  const def=MON[kind]; const s=def.s;
   const g=new THREE.Group();
-  const bodyMat=new THREE.MeshStandardMaterial({color:kind===2?0xff8c1a:0xf43f1e,roughness:.55,emissive:0xff4400,emissiveIntensity:.9});
-  const body=sph(.55,bodyMat,0,.62,0,20,16); body.scale.set(1,.92,1); g.add(body);
-  const belly=sph(.36,new THREE.MeshStandardMaterial({color:0xffc93a,emissive:0xff9500,emissiveIntensity:1.1,roughness:.4}),0,.5,.3,16,12); belly.scale.set(1,1,.6); g.add(belly);
+  const bodyMat=new THREE.MeshStandardMaterial({color:def.body,roughness:.55,emissive:def.body,emissiveIntensity:.45});
+  const body=sph(.55,bodyMat,0,.62,0,20,16);
+  body.scale.set(kind===3?.78:kind===4?1.12:1, kind===3?.86:kind===4?1.02:.92, kind===3?1.28:1); g.add(body);
+  const belly=sph(kind===4?.46:.36,new THREE.MeshStandardMaterial({color:def.belly,emissive:def.belly,emissiveIntensity:.75,roughness:.4}),0,.5,kind===3?.36:.3,16,12); belly.scale.set(1,1,.6); g.add(belly);
   // flame crown: cones
   const flames=[];
   const fMats=_flameMats; // shared across all monsters
@@ -303,13 +315,41 @@ function buildMonster(kind){ // 0 imp small, 1 brute big, 2 spitter
   [-1,1].forEach(sd=>{const a=new THREE.Group();a.position.set(.52*sd,.7,0);a.add(cyl(.09,.07,.38,bodyMat,0,-.16,0));const fh=new THREE.Mesh(new THREE.ConeGeometry(.11,.3,7),fMats[0]);fh.position.y=-.4;fh.rotation.x=Math.PI;a.add(fh);a.rotation.z=sd*.5;g.add(a);arms.push(a);});
   // little feet coals
   [-.25,.25].forEach(x=>g.add(sph(.14,mat(0x2b1508,.9),x,.09,.1,10,8)));
-  if(kind===1){const l=new THREE.PointLight(0xff6600,6,7);l.position.y=1;g.add(l);}
+  if(kind===1){const l=new THREE.PointLight(0xff6600,6,7);l.position.y=1;g.add(l);
+    [-1,1].forEach(sd=>{const horn=new THREE.Mesh(new THREE.ConeGeometry(.12,.5,6),mat(0x3a1500,.8));horn.position.set(.42*sd,1.12,-.05);horn.rotation.z=-sd*.55;g.add(horn);});}
+  let shieldMesh=null, spinPart=null;
+  if(kind===3){ // DASHER: swept mohawk + speed stripes
+    for(let i=0;i<4;i++){const f=new THREE.Mesh(_flameTopGeo,_flameMats[1]);f.position.set(0,1.22-i*.05,.28-i*.2);f.rotation.x=-.8;f.scale.setScalar(.8);g.add(f);flames.push(f);}
+    [-1,1].forEach(sd=>g.add(box(.02,.08,.5,mat(0xffffff,.4),.43*sd,.66,0)));
+  }
+  if(kind===4){ // BOOMER: glowing cracks + fuse
+    [[-.25,.75,.45],[.28,.5,.44],[0,.88,.4]].forEach(([x,y,z])=>{const c=box(.05,.3,.02,new THREE.MeshBasicMaterial({color:0xffd23a}),x,y,z);c.rotation.z=rand(-.6,.6);g.add(c);});
+    const fuse=cyl(.03,.03,.35,mat(0x3a1500,.9),0,1.5,0,6);fuse.rotation.z=.4;g.add(fuse);
+  }
+  if(kind===5){ // SPLITTER: two baby heads riding on top
+    [-.27,.27].forEach(x=>{const h=sph(.24,bodyMat,x,1.18,.05,14,12);g.add(h);[-.08,.08].forEach(ex=>g.add(sph(.04,mat(0x1a0a00,.3),x+ex,1.22,.27,8,8)));const f=new THREE.Mesh(_flameConeGeo,_flameMats[1]);f.position.set(x,1.48,.05);f.scale.setScalar(.7);g.add(f);flames.push(f);});
+  }
+  if(kind===6){ // WARDEN: obsidian shield carried up front
+    shieldMesh=new THREE.Group(); shieldMesh.position.set(0,.62,.58);
+    const plate=box(1.0,1.05,.16,mat(0x4b5563,.3,.45),0,0,0); shieldMesh.add(plate);
+    shieldMesh.add(box(1.08,.14,.2,mat(0xffd23a,.4,.4),0,.42,0));
+    shieldMesh.add(box(1.08,.14,.2,mat(0xffd23a,.4,.4),0,-.42,0));
+    const gem=sph(.14,new THREE.MeshStandardMaterial({color:0xff6a00,emissive:0xff4400,emissiveIntensity:1.4,roughness:.3}),0,0,.12,10,8); shieldMesh.add(gem);
+    [[-.34,.28],[.34,.28],[0,-.3]].forEach(([x,y])=>{const spike=new THREE.Mesh(new THREE.ConeGeometry(.09,.3,6),mat(0x111827,.4,.3));spike.position.set(x,y,.16);spike.rotation.x=Math.PI/2;shieldMesh.add(spike);});
+    g.add(shieldMesh);
+  }
+  if(kind===7){ // SHAMAN: halo + heal staff
+    const halo=new THREE.Mesh(new THREE.TorusGeometry(.3,.045,8,24),new THREE.MeshBasicMaterial({color:0x4ade80})); halo.position.y=1.5; halo.rotation.x=Math.PI/2.5; g.add(halo); spinPart=halo;
+    const staff=cyl(.035,.035,1.15,mat(0x5b3a22,.85),.62,.85,.15,7); staff.rotation.z=-.25; g.add(staff);
+    const orb=sph(.13,new THREE.MeshStandardMaterial({color:0x4ade80,emissive:0x22c55e,emissiveIntensity:1.6,roughness:.3}),.76,1.45,.15,12,10); g.add(orb);
+    const l=new THREE.PointLight(0x4ade80,3,5);l.position.set(.7,1.4,.2);g.add(l);
+  }
   g.scale.setScalar(s);
   const hpBarBg=new THREE.Mesh(new THREE.PlaneGeometry(.9,.11),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.55,side:THREE.DoubleSide}));
   hpBarBg.position.y=1.85; g.add(hpBarBg);
   const hpBar=new THREE.Mesh(new THREE.PlaneGeometry(.86,.07),new THREE.MeshBasicMaterial({color:0xff5533,side:THREE.DoubleSide}));
   hpBar.position.set(0,1.85,.01); g.add(hpBar);
-  return {g,flames,arms,bodyMat,hpBar,s};
+  return {g,flames,arms,bodyMat,hpBar,s,shieldMesh,spinPart};
 }
 
 // ===== particles (single Points pool) =====
@@ -388,35 +428,79 @@ function tryJump(){if(S.mode!=='play')return;if(player.onGround){player.vy=8.2;p
 // ===== waves / enemies =====
 function showBanner(t,s){$('bannerTitle').textContent=t;$('bannerSub').textContent=s;$('banner').classList.remove('hidden');setTimeout(()=>$('banner').classList.add('hidden'),2200);}
 function feed(txt){const d=document.createElement('div');d.textContent=txt;$('killFeed').prepend(d);setTimeout(()=>d.remove(),2600);while($('killFeed').children.length>4)$('killFeed').lastChild.remove();}
+function addEnemy(kind,x,z){
+  const def=MON[kind]; const m=buildMonster(kind);
+  m.g.position.set(x,0,z); scene.add(m.g);
+  const wv=Math.max(1,S.wave||1);
+  const hp=def.hp*(1+(wv-1)*.18);
+  const e={...m,kind,def,pos:m.g.position,hp,maxHp:hp,speed:def.speed*(1+(wv-1)*.05),
+    atkCd:0,shootCd:rand(1,2.4),phase:rand(0,6),wet:0,state:'chase',stateT:0,abCd:kind===3?rand(.4,1):kind===1?rand(.8,1.6):rand(1.4,2.8),
+    burstLeft:0,burstT:0,healCd:rand(2,3.5),fuse:-1,boost:1,dashX:0,dashZ:0,
+    shieldHp:(def.shield||0)*(1+(wv-1)*.15),maxShield:(def.shield||0)*(1+(wv-1)*.15)};
+  enemies.push(e);
+  _v3.set(x,.6,z); spawnP(_v3,14,0xff7700,2,.6,1,2.5);
+  return e;
+}
+function pickKind(n,i){
+  if(n===1)return i%4===3?3:0;                                   // imps + dashers
+  if(n===2)return [0,3,0,4,0,1][i%6];                             // + boomers, first brute
+  if(n===3)return [0,2,3,5,0,4,1,2][i%8];                         // + spitters, splitters
+  if(n===4)return [6,0,7,3,2,5,1,4,0,6][i%10];                    // + wardens, shamans
+  return [1,3,6,2,7,4,5,0,3,6,1,2][i%12];                         // everything, often
+}
+const WAVE_SUBS=['','Fire imps + ⚡ DASHERS inbound — soak them!','💥 BOOMERS explode up close. Brutes slam — jump it!','SPITTERS shoot, SPLITTERS split in two!','🛡️ WARDENS hide behind shields. Kill the ❤️ SHAMANS first!','FINAL WAVE — everything, angrier. Hold the beach! 🏖️'];
 function spawnWave(n){
   S.wave=n; $('wavePill').textContent='WAVE '+n;
-  const count=4+n*2;
-  showBanner('WAVE '+n, n===1?'Fire imps inbound — soak them!':n%3===0?'Brutes + spitters! Stay moving.':'They are getting hotter…');
+  const count=5+n*3;
+  showBanner('WAVE '+n, WAVE_SUBS[n]||'They are getting hotter…');
   beep(180,.25,'sawtooth',.07,-80); setTimeout(()=>beep(240,.2,'sawtooth',.06,-60),200);
   for(let i=0;i<count;i++){
     setTimeout(()=>{ if(S.mode!=='play')return;
-      const kind=(n>=2&&i%5===4)?1:(n>=3&&i%4===2)?2:0;
-      const m=buildMonster(kind);
       const side=Math.random();
       let x,z; if(side<.55){x=rand(-44,44);z=rand(9,15);}else if(side<.78){x=-46;z=rand(-24,12);}else{x=46;z=rand(-24,12);} // most pour in from the bonfire shoreline, in view
-      m.g.position.set(x,0,z); scene.add(m.g);
-      const baseHp=kind===1?130:kind===2?55:34;
-      enemies.push({...m,kind,pos:m.g.position,hp:baseHp*(1+(n-1)*.12),maxHp:baseHp*(1+(n-1)*.12),speed:kind===1?2.1:kind===2?2.7:3.6,atkCd:0,shootCd:rand(1,2.4),phase:rand(0,6),wet:0});
-      spawnP(m.g.position.clone().add(V3(0,.6,0)),14,0xff7700,2,.6,1,2.5);
-    }, i*550);
+      addEnemy(pickKind(n,i),x,z);
+    }, i*Math.max(300,560-n*45));
+  }
+}
+function explodeBoomer(e){
+  _v3.copy(e.pos); _v3.y+=.8;
+  spawnP(_v3,36,0xff6a00,4.2,.7,-2,3.6); spawnP(_v3,20,0xffd23a,3,.5,-2,3); spawnP(_v3,14,0x555555,2,.9,1.5,2);
+  noiseHit(.35,.2,500); beep(90,.3,'sawtooth',.1,-50); S.shake=Math.max(S.shake,.4);
+  if(player.pos.distanceTo(e.pos)<3.4)hurtPlayer(20);
+}
+function killEnemy(e,scored=true){
+  if(e.dead)return; e.dead=true;
+  if(e.kind===4)explodeBoomer(e);
+  if(scored){
+    S.kills++; S.combo++; S.comboT=2.2;
+    const pts=e.def.score*Math.max(1,S.combo); S.score+=pts;
+    feed(`💦 Soaked ${e.def.name} +${pts}`);
+  } else feed('💥 BOOMER blew itself up!');
+  _v3.copy(e.pos); _v3.y+=.8;
+  spawnP(_v3,30,0xffffff,3.2,.9,1,3.5); spawnP(_v3,16,0x38bdf8,3,.7,-4,3);
+  beep(600,.18,'sine',.07,500); noiseHit(.3,.14,1200);
+  const sx=e.pos.x, sz=e.pos.z;
+  scene.remove(e.g);
+  if(e.kind===5){ // SPLITTER pops into two imps
+    feed('🫧 SPLITTER split into two imps!');
+    addEnemy(0,sx-0.8,sz); addEnemy(0,sx+0.8,sz);
   }
 }
 function damageEnemy(e,dmg,hitPos){
+  if(e.dead)return;
+  // 🛡️ WARDEN shield soaks damage first; break it and he enrages
+  if(e.shieldHp>0){
+    const absorbed=Math.min(e.shieldHp,dmg); e.shieldHp-=absorbed; dmg-=absorbed; e.wet=Math.max(e.wet,.4);
+    spawnP(hitPos,6,0x9ca3af,2.4,.35,-5,2); noiseHit(.07,.07,900);
+    if(e.shieldMesh)e.shieldMesh.scale.setScalar(Math.max(.55,e.shieldHp/e.maxShield));
+    if(e.shieldHp<=0&&e.shieldMesh){feed('🛡️ WARDEN shield shattered — he\'s mad now!'); e.shieldMesh.visible=false; e.speed*=1.4; _v3.copy(e.pos);_v3.y+=.8; spawnP(_v3,18,0x9ca3af,3,.6,-3,2.5);}
+    if(dmg<=0){$('hitmark').style.opacity=1;setTimeout(()=>$('hitmark').style.opacity=0,60);return;}
+  }
   e.hp-=dmg; e.wet=1;
   spawnP(hitPos,7,0x7dd3fc,2.2,.45,-5,2); spawnP(hitPos,5,0xffffff,1.2,.7,1.5,2); // splash + steam
   $('hitmark').style.opacity=1; $('hitmark').style.transform='translate(-50%,-50%) scale(1.25)'; setTimeout(()=>{$('hitmark').style.opacity=0;$('hitmark').style.transform='translate(-50%,-50%) scale(1)';},70);
   noiseHit(.09,.05,3000);
-  if(e.hp<=0&&!e.dead){ e.dead=true; S.kills++; S.combo++; S.comboT=2.2; const pts=(e.kind===1?250:e.kind===2?150:100)*Math.max(1,S.combo); S.score+=pts;
-    feed(`💦 Soaked ${e.kind===1?'BRUTE':e.kind===2?'SPITTER':'imp'} +${pts}`);
-    spawnP(e.pos.clone().add(V3(0,.8,0)),34,0xffffff,3.2,.9,1,3.5); spawnP(e.pos.clone().add(V3(0,.8,0)),18,0x38bdf8,3,.7,-4,3);
-    beep(600,.18,'sine',.07,500); noiseHit(.3,.14,1200);
-    scene.remove(e.g);
-  }
+  if(e.hp<=0)killEnemy(e,true);
 }
 function hurtPlayer(dmg){
   if(player.hurtCd>0||S.mode!=='play')return; player.hurtCd=.45; S.hp-=dmg; S.shake=.45; S.combo=0;
@@ -540,6 +624,15 @@ function shoot(dt){
   }
 }
 
+function spitFire(e){
+  const m=_getMesh(_fPool,fireGeo,fireMat);
+  _v3.copy(e.pos); _v3.y+=1.0*e.s; m.position.copy(_v3);
+  const v=player.pos.clone(); v.y+=1.1; v.sub(_v3).normalize().multiplyScalar(13.5);
+  // slight lead so strafing matters but shots threaten
+  v.x+=player.vel.x*.12; v.z+=player.vel.z*.12; v.normalize().multiplyScalar(13.5);
+  fireballs.push({m,v,life:3});
+  beep(320,.14,'sawtooth',.035,-160);
+}
 // ===== main loop =====
 const clock=new THREE.Clock();
 let waveClearT=0, spawnPending=false;
@@ -683,27 +776,65 @@ function animate(){
   // --- enemies AI ---
   let alive=0;
   for(const e of enemies){ if(e.dead)continue; alive++;
-    e.phase+=dt*6; e.wet=Math.max(0,e.wet-dt*1.2); e.atkCd-=dt; e.shootCd-=dt;
+    e.phase+=dt*6; e.wet=Math.max(0,e.wet-dt*1.2); e.atkCd-=dt; e.shootCd-=dt; e.abCd-=dt; e.healCd-=dt; e.boost=1; e.lift=0;
     _v1.copy(player.pos).sub(e.pos); _v1.y=0; const dist=_v1.length(); const dir=_v1.normalize();
-    const stopAt=e.kind===2?11:1.35*e.s;
-    if(dist>stopAt){e.pos.addScaledVector(dir,e.speed*(dist>25?1.7:1)*(1-e.wet*.35)*(S.pu.freeze>0?.42:1)*dt);} // catch-up speed so stragglers always reach the fight; DEEP FREEZE slows them
+    const dx=dir.x, dz=dir.z;
+    const stopAt=(e.kind===2||e.kind===7)?11.5:1.35*e.s;
+    let mx=dx, mz=dz, mv=e.speed*(dist>25?1.7:1)*(1-e.wet*.35)*(S.pu.freeze>0?.42:1);
+    // ---- per-type abilities ----
+    if(e.kind===0){ // IMP: zigzag weave
+      const w=Math.sin(e.phase*1.6)*.55; mx=dx-dz*w; mz=dz+dx*w; const l=Math.hypot(mx,mz)||1; mx/=l;mz/=l;
+    }
+    if(e.kind===3){ // DASHER: windup → dash → tired (backsteps first if already in your face)
+      if(e.state==='chase'&&e.abCd<=0&&dist<13&&dist>2.1){e.state='windup';e.stateT=.45;beep(880,.08,'square',.03);}
+      else if(e.state==='chase'&&e.abCd<=0&&dist<=2.1){e.state='retreat';e.stateT=.42;}
+      else if(e.state==='retreat'){mx=-dx;mz=-dz;mv=e.speed*1.15;e.stateT-=dt; if(e.stateT<=0){e.state='windup';e.stateT=.45;beep(880,.08,'square',.03);}}
+      else if(e.state==='windup'){mv=0;e.boost=.8;e.stateT-=dt; if(e.stateT<=0){e.state='dash';e.stateT=.34;e.dashX=dx;e.dashZ=dz;beep(240,.12,'sawtooth',.05,300);}}
+      else if(e.state==='dash'){mx=e.dashX;mz=e.dashZ;mv=13.5;e.boost=1.08;_v3.copy(e.pos);_v3.y+=.5;spawnP(_v3,1,0xffb020,.5,.3,0,.5); e.stateT-=dt; if(e.stateT<=0){e.state='tired';e.stateT=.75;}}
+      else if(e.state==='tired'){mv*=.35;e.stateT-=dt; if(e.stateT<=0){e.state='chase';e.abCd=rand(1.6,2.7);}}
+    }
+    if(e.kind===4){ // BOOMER: fuse at close range, then boom
+      if(e.fuse<0&&dist<2.5){e.fuse=.85;feed('💥 BOOMER lit its fuse — MOVE!');}
+      if(e.fuse>=0){e.fuse-=dt;mv=0;e.boost=1+ (0.85-e.fuse)*.45+Math.sin(t*30)*.06;
+        if(Math.random()<.25)beep(rand(950,1250),.05,'square',.04);
+        if(e.fuse<=0){killEnemy(e,false);continue;}}
+    }
+    if(e.kind===1){ // BRUTE: ground slam (jump to dodge)
+      if(e.state==='chase'&&e.abCd<=0&&dist<6){e.state='windup';e.stateT=.55;beep(140,.2,'sawtooth',.06,60);}
+      else if(e.state==='windup'){mv=0;e.lift=.55*(1-e.stateT/.55);e.boost=1.1;e.stateT-=dt;
+        if(e.stateT<=0){e.state='tired';e.stateT=.85;e.abCd=rand(3,4.2);S.shake=Math.max(S.shake,.5);noiseHit(.3,.18,300);
+          for(let a=0;a<14;a++){_v3.set(e.pos.x+Math.cos(a/14*6.28)*2.4,.25,e.pos.z+Math.sin(a/14*6.28)*2.4);spawnP(_v3,2,0xf0d488,1.6,.5,-3,2);}
+          if(dist<3.8&&player.pos.y<.55)hurtPlayer(16);}}
+      else if(e.state==='tired'){mv*=.3;e.stateT-=dt; if(e.stateT<=0)e.state='chase';}
+    }
+    if(e.kind===7&&e.healCd<=0){ // SHAMAN: heal the most-wounded ally nearby
+      let best=null,bf=1;
+      for(const o of enemies){if(o===e||o.dead)continue;const f=o.hp/o.maxHp; if(f<bf&&o.pos.distanceTo(e.pos)<11){bf=f;best=o;}}
+      if(best){best.hp=Math.min(best.maxHp,best.hp+14+S.wave*2); e.healCd=3.4;
+        _v3.copy(best.pos);_v3.y+=1; spawnP(_v3,14,0x4ade80,1.6,.7,1.5,2.2);
+        _v3.copy(e.pos);_v3.y+=1.4; spawnP(_v3,8,0x4ade80,1.2,.5,1,1.8); beep(980,.12,'sine',.04,220);}
+      else e.healCd=.8;
+    }
+    if((e.kind===2||e.kind===7)&&dist<stopAt-3.5){mx=-dx;mz=-dz;mv*=.85;} // ranged types back off
+    if(dist>stopAt||e.state==='dash'||e.state==='retreat'||((e.kind===2||e.kind===7)&&dist<stopAt-3.5)){e.pos.x+=mx*mv*dt; e.pos.z+=mz*mv*dt;}
     // separation (alloc-free)
     for(const o of enemies){if(o===e||o.dead)continue;_v2.copy(e.pos).sub(o.pos);_v2.y=0;const d2=_v2.lengthSq();if(d2<1.44&&d2>0.0001){const d=Math.sqrt(d2);e.pos.addScaledVector(_v2.normalize(),(1.2-d)*dt*2);}}
     e.pos.x=clamp(e.pos.x,-53,53); e.pos.z=clamp(e.pos.z,-41,20);
-    e.g.rotation.y=Math.atan2(dir.x,dir.z);
-    e.g.position.y=Math.abs(Math.sin(e.phase))*.14;
-    e.g.scale.setScalar(e.s*(1+Math.sin(e.phase*2)*.03)*(0.75+0.25*(e.hp/e.maxHp)+0.0));
+    e.g.rotation.y=Math.atan2(e.state==='dash'?e.dashX:dx,e.state==='dash'?e.dashZ:dz);
+    e.g.position.y=Math.abs(Math.sin(e.phase))*.14+e.lift;
+    e.g.scale.setScalar(e.s*(1+Math.sin(e.phase*2)*.03)*(0.78+0.22*(e.hp/e.maxHp))*e.boost);
     e.flames.forEach((f,fi)=>{const sc=(1+Math.sin(t*11+fi*1.7)*.28)*(0.35+0.65*(e.hp/e.maxHp))*(1-e.wet*.4);f.scale.set(sc,sc*(1+Math.sin(t*13+fi)*.2),sc);});
     e.arms.forEach((a,ai)=>a.rotation.x=Math.sin(e.phase+ai*Math.PI)*.6-.4);
-    e.bodyMat.emissiveIntensity=.45+.75*(e.hp/e.maxHp);
+    if(e.spinPart)e.spinPart.rotation.z+=dt*2.4;
+    e.bodyMat.emissiveIntensity=(e.state==='windup'?1.6:.45+.75*(e.hp/e.maxHp));
     e.hpBar.scale.x=Math.max(0,e.hp/e.maxHp); e.hpBar.position.x=-(1-Math.max(0,e.hp/e.maxHp))*.43; // bars face +Z local; monster faces player, so bars face camera
-    if(Math.random()<.18){_v3.set(e.pos.x+rand(-.3,.3),e.pos.y+1.3*e.s,e.pos.z+rand(-.3,.3));spawnP(_v3,1,0xff9500,.5,.5,2.5,1.5);}
+    if(Math.random()<.18){_v3.set(e.pos.x+rand(-.3,.3),e.pos.y+1.3*e.s,e.pos.z+rand(-.3,.3));spawnP(_v3,1,e.kind===7?0x4ade80:0xff9500,.5,.5,2.5,1.5);}
     // attacks
-    if(dist<1.7*e.s&&e.atkCd<=0){e.atkCd=.85;hurtPlayer(e.kind===1?16:9); spawnP(player.pos.clone().add(V3(0,1.1,0)),12,0xff6600,2,.45,-2,2);}
-    if(e.kind===2&&dist<26&&dist>4&&e.shootCd<=0){e.shootCd=rand(1.6,2.6);
-      const m=_getMesh(_fPool,fireGeo,fireMat); const from=e.pos.clone();from.y+=1.0*e.s;m.position.copy(from);
-      const tgt=player.pos.clone();tgt.y+=1.1; const v=tgt.sub(from).normalize().multiplyScalar(13); fireballs.push({m,v,life:3});
-      beep(320,.14,'sawtooth',.035,-160);}
+    if(e.kind!==4&&e.state!=='windup'&&dist<1.7*e.s&&e.atkCd<=0){e.atkCd=.85;hurtPlayer(e.def.dmg);_v3.copy(player.pos);_v3.y+=1.1;spawnP(_v3,12,0xff6600,2,.45,-2,2);}
+    if(e.kind===2){ // SPITTER: single shots, burst of 3 on wave 5
+      if(e.burstLeft>0){e.burstT-=dt; if(e.burstT<=0){e.burstLeft--; e.burstT=.22; spitFire(e);}}
+      else if(dist<27&&dist>4&&e.shootCd<=0){e.shootCd=rand(1.7,2.6); e.burstLeft=S.wave>=5?2:S.wave>=4?1:0; spitFire(e);}
+    }
   }
   // wave clear?
   const expectedAlive=alive; // counted in the AI pass above; HUD text updated in the throttled HUD block
