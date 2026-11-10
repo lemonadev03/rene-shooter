@@ -1,0 +1,22 @@
+{
+  "name": "rene-shooter",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.13.0 || >=24"
+  },
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "lint": "node scripts/lint.mjs",
+    "check": "node scripts/check.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "perf": "node scripts/perf.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "espree": "11.2.0",
+    "globals": "17.14.0",
+    "playwright": "1.65.0"
+  }
+}
