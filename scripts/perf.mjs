@@ -9,6 +9,8 @@ const { values: options } = parseArgs({
     runs: { type: "string", default: "3" },
     q: { type: "string", default: "high" },
     json: { type: "string" },
+    // Base URL of a deployed copy (e.g. the GitHub Pages site); default serves this checkout.
+    url: { type: "string" },
   },
 });
 const runs = Number(options.runs);
@@ -102,7 +104,7 @@ async function runOnce(origin) {
     }));
     await page.click("#playBtn");
     await page.evaluate(async () => {
-      window.__perfWaveState = (await import("/src/core/state.js")).waveState;
+      window.__perfWaveState = (await import(new URL("src/core/state.js", location.href).href)).waveState;
     });
     for (let wave = 1; wave <= WAVES; wave++) {
       await page.waitForFunction(
@@ -143,15 +145,16 @@ async function runOnce(origin) {
   }
 }
 
-const server = await startServer();
+const server = options.url ? null : await startServer();
+const origin = options.url ? options.url.replace(/\/+$/, "") : server.url;
 const results = [];
 try {
   for (let i = 0; i < runs; i++) {
     console.log(`Run ${i + 1}/${runs}`);
-    results.push(await runOnce(server.url));
+    results.push(await runOnce(origin));
   }
 } finally {
-  await server.close();
+  await server?.close();
 }
 
 const summary = {
