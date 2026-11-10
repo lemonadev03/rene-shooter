@@ -35,7 +35,6 @@
 <canvas id="c"></canvas>
 <div id="panel">
   <h1>MONSTER <b>LAB</b></h1>
-  <div class="sub">Seawater creatures for RENE SHOOTER. Pick a kind, drive its state, boil it.</div>
   <div class="lbl">Kind</div>
   <div class="row" id="kindRow"></div>
   <div id="kindName" style="font-weight:700;color:#7dd3fc"></div>
@@ -58,6 +57,7 @@
     <button data-cam="close">FP close (3 m)</button>
     <button data-cam="fp8">FP line-up 8 m</button>
     <button data-cam="fp30">FP line-up 30 m</button>
+    <button id="conceptBtn">Concept backdrop</button>
   </div>
   <div class="lbl">Load test</div>
   <div class="row">
@@ -72,6 +72,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { createWaterCreature, CREATURES } from '../src/enemies/waterCreature.js';
 
@@ -80,6 +81,9 @@ addEventListener('error', (e) => { errBox.style.display = 'block'; errBox.textCo
 addEventListener('unhandledrejection', (e) => { errBox.style.display = 'block'; errBox.textContent = 'Error: ' + (e.reason && e.reason.message || e.reason); });
 
 const params = new URLSearchParams(location.search);
+let conceptMode = params.get('backdrop') === 'concept';
+let paused = false;
+let autoRender = true;
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(devicePixelRatio);
@@ -107,7 +111,8 @@ new HDRLoader().load(
   'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_48d_partly_cloudy_puresky_1k.hdr',
   (tex) => {
     tex.mapping = THREE.EquirectangularReflectionMapping;
-    scene.background = tex;
+    if (!conceptMode) scene.background = tex;
+    window.__sky = tex;
     scene.environment = pmrem.fromEquirectangular(tex).texture;
     window.__hdriReady = true;
   },
@@ -204,6 +209,31 @@ scene.add(foamBand);
   buoy.position.set(-4.6, 0.5, -3.3); buoy.rotation.y = 0.4; buoy.castShadow = true; scene.add(buoy);
 }
 
+// Batch static props so the shared transmission prepass stays within the lab budget.
+{
+  const props=scene.children.filter(o=>o.isMesh && o!==sand && o!==sea && o!==foamBand);
+  for(const mapped of [false,true]) {
+    const list=props.filter(o=>!!o.material.map===mapped),geometries=[];
+    for(const o of list) {
+      o.updateMatrixWorld();const g=(o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone()).applyMatrix4(o.matrixWorld);
+      if(!mapped){const a=new Float32Array(g.attributes.position.count*3),c=o.material.color;for(let i=0;i<a.length;i+=3){a[i]=c.r;a[i+1]=c.g;a[i+2]=c.b;}g.setAttribute('color',new THREE.BufferAttribute(a,3));}
+      geometries.push(g);o.removeFromParent();o.geometry.dispose();
+    }
+    const material=mapped?list[0].material:new THREE.MeshStandardMaterial({vertexColors:true,roughness:.75});
+    const mesh=new THREE.Mesh(mergeGeometries(geometries),material);mesh.castShadow=mesh.receiveShadow=true;scene.add(mesh);
+    for(const g of geometries)g.dispose();
+  }
+}
+
+// A neutral disc keeps contact and refraction visible beside the concept sheet.
+const beachObjects = scene.children.filter(o => o.isMesh);
+const conceptDisc = new THREE.Mesh(new THREE.CircleGeometry(5, 96),
+  new THREE.MeshStandardMaterial({ color: 0x333639, roughness: .72 }));
+conceptDisc.rotation.x = -Math.PI / 2;
+conceptDisc.position.y = -.003;
+conceptDisc.visible = false;
+scene.add(conceptDisc);
+
 // ----- creatures -----
 const SPACING = 3.4;
 let lineup = [];
@@ -213,11 +243,6 @@ let selState = 'idle';
 let stressOn = false;
 let hidden = false;
 
-const marker = new THREE.Mesh(
-  new THREE.RingGeometry(0.95, 1.1, 40),
-  new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
-marker.rotation.x = -Math.PI / 2; marker.position.y = 0.02; marker.renderOrder = 4;
-scene.add(marker);
 const shieldRange = document.getElementById('shieldRange');
 
 function makeLineup() {
@@ -251,7 +276,8 @@ function setStress(on) {
 }
 function applyHidden() {
   for (const c of [...lineup, ...stressSet]) c.group.visible = !hidden;
-  marker.visible = !hidden;
+  for (let i=0;i<lineup.length;i++) lineup[i].group.visible = !hidden && (!conceptMode || i===selected);
+  for (const c of stressSet) c.group.visible = !hidden && !conceptMode;
 }
 makeLineup();
 
@@ -276,10 +302,10 @@ function setKind(i) {
   document.getElementById('kindName').textContent =
     `${i} · ${CREATURES[i].name} — scale ${CREATURES[i].s}, hit radius ${lineup[i].radius.toFixed(2)} m`;
   [...kindRow.children].forEach((b, k) => b.classList.toggle('on', k === i));
-  const p = lineup[i].group.position;
-  marker.position.set(p.x, 0.02, p.z);
-  marker.scale.setScalar(Math.max(0.8, lineup[i].radius * 1.25));
+  conceptDisc.position.x = lineup[i].group.position.x;
+  applyHidden();
   if (camMode !== 'orbit') applyCam();
+  if (conceptMode) conceptView();
 }
 function setState(s) {
   selState = s;
@@ -310,13 +336,16 @@ let camMode = 'orbit';
 function applyCam() {
   const sel = lineup[selected].group.position;
   controls.enabled = camMode === 'orbit';
+  camera.fov = 62; camera.updateProjectionMatrix();
   if (camMode === 'close') {
     camera.position.set(sel.x + 0.9, 1.65, sel.z + 3.1);
     camera.lookAt(sel.x, 1.0, sel.z);
   } else if (camMode === 'fp8') {
+    camera.fov=88;camera.updateProjectionMatrix();
     camera.position.set(0, 1.65, 8);
     camera.lookAt(0, 1.15, 0);
   } else if (camMode === 'fp30') {
+    camera.fov=50;camera.updateProjectionMatrix();
     camera.position.set(0, 1.65, 30);
     camera.lookAt(0, 1.3, 0);
   }
@@ -326,8 +355,33 @@ function applyCam() {
 document.getElementById('camRow').addEventListener('click', (e) => {
   if (e.target.dataset.cam) { camMode = e.target.dataset.cam; applyCam(); }
 });
+function conceptView(yaw = .95, elevation = .18, distance = 5.2, targetY) {
+  const p = lineup[selected].group.position;
+  const height = selected===1 ? 3.7 : selected===7 ? 2.8 : selected===2 ? 2.1 : 1.6;
+  const cy = targetY === undefined ? height*.48 : targetY;
+  camera.fov = 37; camera.updateProjectionMatrix();
+  controls.target.set(p.x,cy,p.z);
+  camera.position.set(p.x+Math.sin(yaw)*distance,cy+Math.sin(elevation)*distance,p.z+Math.cos(yaw)*distance);
+  camera.lookAt(controls.target);controls.update();
+}
+function setConcept(on) {
+  conceptMode=on;
+  for (const o of beachObjects) o.visible=!on;
+  conceptDisc.visible=on;
+  scene.background=on?new THREE.Color(0x505358):window.__sky;
+  scene.fog=on?null:new THREE.Fog(0xcfe8f2,55,160);
+  document.getElementById('panel').style.display=on?'none':'';
+  document.getElementById('legend').style.display=on?'none':'';
+  document.getElementById('stats').style.display=on?'none':'';
+  if(on)conceptView(.95,.16,selected===1?9:selected===7?6.5:5.2);
+  else {camera.fov=62;camera.updateProjectionMatrix();applyCam();}
+  applyHidden();
+}
+document.getElementById('conceptBtn').onclick=()=>setConcept(!conceptMode);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&conceptMode)setConcept(false);});
 setKind(selected);
 setState('idle');
+setConcept(conceptMode);
 
 // ----- URL params + scriptable API (used by the Playwright harness) -----
 window.__lab = {
@@ -337,7 +391,13 @@ window.__lab = {
   death: () => lineup[selected].startDeath(),
   reset: () => { makeLineup(); applyHidden(); setKind(selected); },
   setCam: (m) => { camMode = m; applyCam(); },
-  setStress,
+  setStress, setConcept, setView: conceptView,
+  setAutoRender: (v) => { autoRender=v; },
+  pause: (v=true) => { paused=v; },
+  step: (seconds) => { for(let i=0;i<Math.ceil(seconds*60);i++) advance(1/60); renderer.render(scene,camera); },
+  render: () => renderer.render(scene,camera),
+  isolate: (kind) => { for(let i=0;i<lineup.length;i++)lineup[i].group.visible=i===kind;for(const c of stressSet)c.group.visible=false; },
+  inspect: () => lineup.map(c=>({radius:c.radius,meshes:c.group.children.length,body:c.group.children[0].children[0].morphTargetInfluences[0],scale:c.group.children[0].scale.toArray()})),
   setShield: (f) => { shieldRange.value = Math.round(f * 100); applyShield(); },
   setHidden: (h) => { hidden = h; applyHidden(); },
   counts: () => ({ lineup: lineup.length, stress: stressSet.length, total: lineup.length + stressSet.length }),
@@ -352,7 +412,7 @@ if (params.get('panel') === '0') {
   document.getElementById('panel').style.display = 'none';
   document.getElementById('legend').style.display = 'none';
   document.getElementById('stats').style.display = 'none';
-  marker.visible = false;
+
 }
 
 // ----- main loop -----
@@ -361,34 +421,12 @@ let emaMs = 16, statT = 0;
 const fpsEl = document.getElementById('fps'), msEl = document.getElementById('ms'), drawsEl = document.getElementById('draws');
 function frame() {
   requestAnimationFrame(frame);
+  if(!autoRender)return;
   const t0 = performance.now();
   const nowS = performance.now() / 1000;
   const dt = Math.min(nowS - lastNow, 0.05);
-  lastNow = nowS; elapsed += dt;
-  const t = elapsed;
-  const inSea = document.getElementById('seaChk').checked;
-  const inSun = document.getElementById('sunChk').checked;
-  for (let i = 0; i < lineup.length; i++) {
-    const isSel = i === selected;
-    lineup[i].update(dt, t, {
-      speed: isSel && selState === 'walk' ? 3.2 : 0,
-      state: isSel ? selState : 'idle',
-      inSea: isSel ? inSea : false,
-      inSun: isSel ? inSun : true,
-    });
-  }
-  for (let i = 0; i < stressSet.length; i++) {
-    const c = stressSet[i];
-    c.update(dt, t, {
-      speed: i % 3 === 0 ? 2.6 : 0,
-      state: i % 3 === 0 ? 'walk' : 'idle',
-      inSea: c.group.position.z < -4,
-      inSun: true,
-    });
-  }
-  seaBump.offset.x = t * 0.016; seaBump.offset.y = t * 0.011;
-  foamBand.position.z = -6.8 + Math.sin(t * 0.55) * 0.7;
-  foamBand.material.opacity = 0.4 + Math.sin(t * 0.55) * 0.15;
+  lastNow = nowS;
+  advance(paused ? 0 : dt);
   if (controls.enabled) controls.update();
   renderer.render(scene, camera);
   const ms = performance.now() - t0;
@@ -401,6 +439,29 @@ function frame() {
     drawsEl.textContent = `${renderer.info.render.calls} draws · ${(renderer.info.render.triangles / 1000).toFixed(0)}k tris`;
   }
   window.__lab.ready = true;
+}
+const opts={speed:0,state:'idle',inSea:false,inSun:true};
+function advance(dt) {
+  elapsed += dt;
+  const t = elapsed;
+  const inSea = document.getElementById('seaChk').checked;
+  const inSun = document.getElementById('sunChk').checked;
+  for (let i = 0; i < lineup.length; i++) {
+    if (!lineup[i].group.visible) continue;
+    const isSel = i === selected;
+    opts.speed=isSel&&selState==='walk'?3.2:0;opts.state=isSel?selState:'idle';
+    opts.inSea=isSel?inSea:false;opts.inSun=isSel?inSun:true;
+    lineup[i].update(dt,t,opts);
+  }
+  for (let i = 0; i < stressSet.length; i++) {
+    const c = stressSet[i];
+    if (!c.group.visible) continue;
+    opts.speed=i%3===0?2.6:0;opts.state=i%3===0?'walk':'idle';opts.inSea=c.group.position.z < -4;opts.inSun=true;
+    c.update(dt,t,opts);
+  }
+  seaBump.offset.x = t * 0.016; seaBump.offset.y = t * 0.011;
+  foamBand.position.z = -6.8 + Math.sin(t * 0.55) * 0.7;
+  foamBand.material.opacity = 0.4 + Math.sin(t * 0.55) * 0.15;
 }
 frame();
 addEventListener('resize', () => {
