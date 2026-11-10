@@ -10,7 +10,9 @@ import {
   powerups,
   lifecycle,
 } from "./core/state.js";
-import { renderer, renderFrame } from "./core/renderer.js";
+import { renderer, renderFrame, initializeRendering } from "./core/renderer.js";
+import { assetsReady, finishAssetRegistration, markRenderingReady } from "./core/assets.js";
+import { quality } from "./core/quality.js";
 import {
   initInput,
   applyLookInput,
@@ -109,7 +111,7 @@ function startGame() {
   spawnWave(1);
 }
 
-initSky();
+const skyReady = initSky(renderer);
 initBeach();
 initOcean();
 initPools();
@@ -121,6 +123,7 @@ $("playBtn").addEventListener("click", startGame);
 $("againBtn").addEventListener("click", startGame);
 window.__game = {
   renderer,
+  quality,
   scene,
   camera,
   vmScene,
@@ -133,6 +136,13 @@ window.__game = {
 };
 // Retain the existing harness's renderer lookup alongside the complete debug API.
 window.__renderer = renderer;
+
+finishAssetRegistration();
+await Promise.all([skyReady, assetsReady]);
+updateTitleCamera(0);
+updateViewmodel(0);
+await initializeRendering();
+markRenderingReady();
 
 let frame = 0;
 let previousTime = performance.now();

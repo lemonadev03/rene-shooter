@@ -1,90 +1,130 @@
 import { $ } from "./utils.js";
 import * as THREE from "three";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { camera } from "./state.js";
+import { vmCamera } from "../weapons/viewmodel.js";
+import { configureShadows } from "../world/sky.js";
+import { createPost } from "./post.js";
+import { quality, qualityCap, measureDisplayInterval, pickQuality } from "./quality.js";
 
-import { scene, camera, state } from "./state.js";
-import { vmScene, vmCamera } from "../weapons/viewmodel.js";
-const canvas = $("c");
-export const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true,
-  powerPreference: "high-performance",
-});
-let _pxRatio = Math.min(devicePixelRatio, 1.5); // cap fill cost on retina; adaptive step-down in loop if frame time sags
-renderer.setPixelRatio(_pxRatio);
+export const renderer = new THREE.WebGLRenderer({ canvas: $("c"), antialias: false, powerPreference: "high-performance" });
+renderer.setPixelRatio(1);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
+// r187 PCF uses hardware filtering and a radius-controlled Vogel disk; PCFSoft is removed.
 renderer.shadowMap.type = THREE.PCFShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMappingExposure = 0.65;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-scene.background = new THREE.Color(0x79d4f2);
-scene.fog = new THREE.Fog(0xaee7f7, 55, 150);
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.35;
-
 renderer.autoClear = false;
 renderer.info.autoReset = false;
-let frameTime = 0;
-let frameCount = 0;
+const post = createPost(renderer);
+const displayReady = measureDisplayInterval(() => renderer.clear());
+let scale = 1;
+let samples = [];
+let sampleTime = 0;
+let comfortableTime = 0;
 let debugTime = 0;
-const debug = new URLSearchParams(location.search).get("debug") === "1";
-const overlay = debug ? document.createElement("div") : null;
+let debugFrames = 0;
+let lastFrameTime;
+let renderCostMs = 0;
+const overlay = new URLSearchParams(location.search).get("debug") === "1" ? document.createElement("div") : null;
 if (overlay) {
   overlay.id = "debug";
-  overlay.style.cssText =
-    "position:fixed;top:6px;left:6px;z-index:30;white-space:pre;pointer-events:none;font:11px monospace;color:#fff;background:#000a;padding:5px";
+  overlay.style.cssText = "position:fixed;top:6px;left:6px;z-index:30;white-space:pre;pointer-events:none;font:11px monospace;color:#fff;background:#000a;padding:5px";
   document.body.append(overlay);
 }
 
+function setScale(value) {
+  scale = Math.max(0.5, Math.min(qualityCap(), value));
+  quality.renderScale = scale;
+  renderer.setPixelRatio(scale);
+  renderer.setSize(innerWidth, innerHeight);
+  post.resize(innerWidth, innerHeight, scale);
+}
 export function resize() {
   const aspect = innerWidth / innerHeight;
   camera.aspect = aspect;
   camera.updateProjectionMatrix();
   vmCamera.aspect = aspect;
   vmCamera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+  setScale(scale);
 }
 addEventListener("resize", resize);
 
-export function renderFrame(dt) {
-  // Keep the existing two-second adaptive-resolution budget in one owner.
-  frameTime += dt;
-  frameCount++;
-  if (frameTime >= 2) {
-    const fps = frameCount / frameTime;
-    frameTime = 0;
-    frameCount = 0;
-    const maxRatio = Math.min(devicePixelRatio, 1.5);
-    if (fps < 45 && _pxRatio > 1) {
-      _pxRatio = Math.max(1, _pxRatio - 0.25);
-      renderer.setPixelRatio(_pxRatio);
-    } else if (fps > 57 && _pxRatio < maxRatio) {
-      _pxRatio = Math.min(maxRatio, _pxRatio + 0.25);
-      renderer.setPixelRatio(_pxRatio);
+export async function initializeRendering() {
+  await displayReady;
+  setScale(qualityCap());
+  const costs = [];
+  let previousFrame;
+  const gl = renderer.getContext();
+  async function completeGPUFrame() {
+    const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    const deadline = performance.now() + 200;
+    while (gl.clientWaitSync(fence, 0, 0) === gl.TIMEOUT_EXPIRED && performance.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
+    gl.deleteSync(fence);
   }
-  renderer.info.reset();
-  renderer.clear();
-  renderer.render(scene, camera);
-  if (state.mode === "play") {
-    renderer.clearDepth();
-    renderer.render(vmScene, vmCamera);
+  // Fence only during startup: command submission/finish alone can under-report
+  // completed GPU work through Chromium's asynchronous command buffer.
+  for (let i = 0; i < 28; i++) {
+    const frameNow = await new Promise(requestAnimationFrame);
+    const start = performance.now();
+    renderer.info.reset();
+    post.render(1 / 120);
+    await completeGPUFrame();
+    if (i >= 8) costs.push(Math.max(performance.now() - start,
+      quality.measuredIntervalMs < 4 ? frameNow - previousFrame : 0));
+    previousFrame = frameNow;
   }
-  debugTime += dt;
-  if (overlay && debugTime >= 0.25) {
-    const frameMs = (debugTime * 1000) / debugFrames;
-    overlay.textContent =
-      `fps ${(1000 / frameMs).toFixed(0)}  frame ${frameMs.toFixed(2)} ms
-` +
-      `calls ${renderer.info.render.calls}  triangles ${renderer.info.render.triangles}
-` +
-      `pixel ratio ${renderer.getPixelRatio().toFixed(2)}`;
-    debugTime = 0;
-    debugFrames = 0;
-  }
-  debugFrames++;
+  pickQuality(costs);
+  configureShadows();
+  setScale(qualityCap());
+  // Compile the selected AA/effect variant before allowing play.
+  post.render(0);
+  await completeGPUFrame();
 }
-let debugFrames = 1;
+
+function adaptResolution(frameMs) {
+  samples.push(frameMs);
+  sampleTime += frameMs;
+  while (samples.length > 1 && sampleTime - samples[0] >= 500) sampleTime -= samples.shift();
+  if (sampleTime < 500) return;
+  const average = sampleTime / samples.length;
+  if (average > quality.targetFrameMs * 1.15 && scale > 0.5) {
+    setScale(scale * 0.9);
+    samples = [];
+    sampleTime = comfortableTime = 0;
+  } else if (average < quality.targetFrameMs * 0.95 ||
+    // At vsync, frame intervals cannot fall below the display interval. Submission
+    // headroom plus stable pacing lets resolution recover on those displays too.
+    (average <= quality.targetFrameMs * 1.03 && renderCostMs < quality.targetFrameMs * 0.5)) {
+    comfortableTime += frameMs;
+    if (comfortableTime >= 3000 && scale < qualityCap()) {
+      setScale(scale * 1.05);
+      samples = [];
+      sampleTime = comfortableTime = 0;
+    }
+  } else comfortableTime = 0;
+}
+
+export function renderFrame(dt) {
+  const now = performance.now();
+  const frameMs = lastFrameTime === undefined ? dt * 1000 : now - lastFrameTime;
+  lastFrameTime = now;
+  if (!document.hidden && frameMs < 250) adaptResolution(frameMs);
+  renderer.info.reset();
+  const renderStart = performance.now();
+  post.render(dt);
+  renderCostMs += (performance.now() - renderStart - renderCostMs) * 0.1;
+  debugTime += frameMs;
+  debugFrames++;
+  if (overlay && debugTime >= 250) {
+    const average = debugTime / debugFrames;
+    overlay.textContent = `tier ${quality.tier}  render scale ${scale.toFixed(2)}×\n` +
+      `fps ${(1000 / average).toFixed(0)}  frame ${average.toFixed(2)} ms\n` +
+      `draw calls ${renderer.info.render.calls}  triangles ${renderer.info.render.triangles}`;
+    debugTime = debugFrames = 0;
+  }
+}
