@@ -122,10 +122,17 @@ const MON = [
     dmg: 8,
   },
 ];
+// Marks where a monster glows; updateMonsterLights copies it into a shared light slot.
+function makeGlow(color, intensity, distance) {
+  const anchor = new THREE.Object3D();
+  anchor.userData.glow = { color, intensity, distance, decay: 2 };
+  return anchor;
+}
 function buildMonster(kind) {
   const def = MON[kind];
   const s = def.s;
   const g = new THREE.Group();
+  let glow = null;
   const bodyMat = new THREE.MeshStandardMaterial({
     color: def.body,
     roughness: 0.15,
@@ -203,9 +210,9 @@ function buildMonster(kind) {
     g.add(sph(0.14, mat(0x2b1508, 0.9), x, 0.09, 0.1, 10, 8)),
   );
   if (kind === 1) {
-    const l = new THREE.PointLight(0x38bdf8, 5, 7);
-    l.position.y = 1;
-    g.add(l);
+    glow = makeGlow(0x38bdf8, 5, 7);
+    glow.position.y = 1;
+    g.add(glow);
     [-1, 1].forEach((sd) => {
       const horn = new THREE.Mesh(
         new THREE.ConeGeometry(0.12, 0.5, 6),
@@ -343,9 +350,9 @@ function buildMonster(kind) {
       10,
     );
     g.add(orb);
-    const l = new THREE.PointLight(0x4ade80, 3, 5);
-    l.position.set(0.7, 1.4, 0.2);
-    g.add(l);
+    glow = makeGlow(0x4ade80, 3, 5);
+    glow.position.set(0.7, 1.4, 0.2);
+    g.add(glow);
   }
   g.scale.setScalar(s);
   const hpBarBg = new THREE.Mesh(
@@ -365,7 +372,7 @@ function buildMonster(kind) {
   );
   hpBar.position.set(0, 1.85, 0.01);
   g.add(hpBar);
-  return { g, flames, arms, bodyMat, hpBar, s, shieldMesh, spinPart };
+  return { g, flames, arms, bodyMat, hpBar, s, shieldMesh, spinPart, glow };
 }
 function addEnemy(kind, x, z) {
   const def = MON[kind];
