@@ -3,7 +3,7 @@ import { rand } from "../core/utils.js";
 import { scene, state as S, player, powerups } from "../core/state.js";
 import { beep } from "../core/audio.js";
 import { spawnP } from "../vfx/particles.js";
-import { makeLabel } from "../world/pools.js";
+import { makeLabel } from "../vfx/labels.js";
 import { feed } from "./hud.js";
 const PU_TYPES = [
   { k: "rapid", emoji: "⚡", name: "RAPID RAY", col: 0xffd23a, dur: 10 },

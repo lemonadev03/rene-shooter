@@ -20,7 +20,9 @@ import {
 import { createBeachMaterials, updateSandQuality } from "./beach-materials.js";
 import { initScatter, updateScatterQuality } from "./scatter.js";
 import { mergeStaticChildren } from "./staticBatch.js";
-export const PIER = { x: 38, z: 26, len: 25, w: 3.6, bottom: 2.25 };
+import { PIER } from "./pier.js";
+
+export { PIER };
 let bonfireFlames = [];
 let sailboats = [];
 export function initBeach() {
