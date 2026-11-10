@@ -334,11 +334,11 @@ export function buildSolarSoakerHD({ textureBase = new URL('../../assets/weapons
         // Collimated reticle: compare the viewing RAY to the barrel axis, not lens UV.
         // Lateral eye movement shifts the dot across the glass while its world direction stays fixed.
         vec3 ray=normalize(vLocal-eyeLocal);float facing=step(.001,eyeLocal.z-lensZ);
-        float angle=length(ray.xy);float dotCore=(1.-smoothstep(.00095,.00175,angle))*facing;
-        float halo=exp(-angle*angle/0.000034)*.20*facing;
+        float angle=length(ray.xy);float dotCore=(1.-smoothstep(.0024,.0036,angle))*facing;
+        float halo=exp(-angle*angle/0.00009)*.30*facing;
         float edge=pow(clamp(length(vec2((vLocal.x-opticalX)/.031,(vLocal.y-opticalY)/.01664)),0.,1.),5.);
         vec3 glass=mix(vec3(.18,.33,.33),vec3(.65,.31,.07),edge);
-        float a=.055+edge*.14;vec3 color=mix(glass,vec3(1.,.075,.012),clamp(dotCore+halo,0.,1.));
+        float a=.055+edge*.14;vec3 color=mix(glass,vec3(3.,.12,.02),clamp(dotCore+halo,0.,1.));
         gl_FragColor=vec4(color,max(a,clamp(dotCore+halo,0.,1.)));
       }`
   });

@@ -22,6 +22,9 @@ const adsPosition = new THREE.Vector3();
 const adsRotation = new THREE.Quaternion();
 const sightMatrix = new THREE.Matrix4();
 const sightScale = new THREE.Vector3();
+// The HUD crosshair fades out as the sight comes up, so the red dot is the only aim point.
+const crosshair = document.getElementById("cross");
+let crosshairOpacity = 1;
 
 export function mountGun(nextModel, { flip = false } = {}) {
   mount.clear();
@@ -94,6 +97,11 @@ export function updateViewmodel(dt) {
   }
   const aiming = aim.update(dt, player.aiming ? 1 : 0);
   const free = 1 - aiming;
+  const nextCrosshairOpacity = Math.round(Math.max(0, 1 - aiming * 2.5) * 50) / 50;
+  if (crosshair && nextCrosshairOpacity !== crosshairOpacity) {
+    crosshairOpacity = nextCrosshairOpacity;
+    crosshair.style.opacity = crosshairOpacity;
+  }
   const sprinting = !player.aiming && player.sliding <= 0 && player.speedNow > 6 &&
     (input.keys.ShiftLeft || input.keys.ShiftRight);
   const sprint = sprintPose.update(dt, sprinting ? 1 : 0) * free;
