@@ -41,6 +41,9 @@ import {
   killAll,
 } from "./enemies/waves.js";
 import { initParticles, updateParts } from "./vfx/particles.js";
+import { initBeam, updateBeam } from "./vfx/beam.js";
+import { initImpacts, updateImpacts } from "./vfx/impacts.js";
+import { initHitmarker, updateHitmarker } from "./vfx/hitmarker.js";
 import { PU_TYPES, updatePowerups } from "./ui/powerups.js";
 import { updateHud, setWeapon, initShares } from "./ui/hud.js";
 
@@ -116,6 +119,9 @@ initBeach();
 initOcean();
 initPools();
 initParticles();
+initBeam();
+initImpacts();
+initHitmarker();
 lifecycle.gameOver = gameOver;
 initInput({ tryJump, setWeapon });
 initShares();
@@ -159,6 +165,9 @@ function animate(now) {
     updateSky(dt);
     updatePoolsAndBeacons(dt, t);
     updateParts(dt);
+    updateBeam(dt);
+    updateImpacts(dt);
+    updateHitmarker(dt);
     if (state.mode !== "play") {
       updateTitleCamera(t);
       renderFrame(dt);
