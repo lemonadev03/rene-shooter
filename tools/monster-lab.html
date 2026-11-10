@@ -247,7 +247,7 @@ const shieldRange = document.getElementById('shieldRange');
 
 function makeLineup() {
   for (const c of lineup) c.dispose();
-  lineup = CREATURES.map((def, i) => {
+  lineup = CREATURES.map((_def, i) => {
     const c = createWaterCreature(i);
     c.group.position.set((i - 3.5) * SPACING, 0, 0);
     scene.add(c.group);

@@ -1,5 +1,4 @@
-import { $ } from "./utils.js";
-import { clamp } from "./utils.js";
+import { $, clamp } from "./utils.js";
 import { state as S, input, look } from "./state.js";
 
 const canvas = $("c");

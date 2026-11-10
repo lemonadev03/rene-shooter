@@ -103,7 +103,6 @@ function sculpture(kind) {
   const vertices=[],indices=[],waterAttr=[],wind=[];
   const foamSeeds=[],feet=[];
   const tmp=new THREE.Vector3(),tan=new THREE.Vector3(),side=new THREE.Vector3(),up=new THREE.Vector3();
-  const Y=new THREE.Vector3(0,1,0);
   function point(x,y,z,foam,thick) {
     const i=vertices.length/3;
     const turbulence=(Math.sin(x*23+y*13+z*17)+Math.sin(z*31-y*19+x*11))*.008;
@@ -353,7 +352,7 @@ function reef() {
   const centers=Array.from({length:12},()=>new THREE.Box3());
   const v=new THREE.Vector3();
   for(let i=0;i<p.count;i++)centers[ids[i]].expandByPoint(v.fromBufferAttribute(p,i));
-  const rotations=centers.map((box,id)=>new THREE.Quaternion().setFromEuler(new THREE.Euler((id%2?1:-1)*1.15,0,(id%3-1)*.9)));
+  const rotations=centers.map((_box,id)=>new THREE.Quaternion().setFromEuler(new THREE.Euler((id%2?1:-1)*1.15,0,(id%3-1)*.9)));
   const origins=centers.map(box=>box.getCenter(new THREE.Vector3()));
   const finalPositions=new Float32Array(p.count*3),bottoms=new Float32Array(12).fill(Infinity);
   for(let i=0;i<p.count;i++){

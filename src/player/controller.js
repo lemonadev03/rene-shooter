@@ -1,6 +1,5 @@
-import { $ } from "../core/utils.js";
+import { $, clamp, rand, V3 } from "../core/utils.js";
 import * as THREE from "three";
-import { clamp, rand, V3 } from "../core/utils.js";
 import {
   state as S,
   player,

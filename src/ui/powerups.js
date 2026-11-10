@@ -15,8 +15,8 @@ const PU_TYPES = [
 
 function spawnPowerup() {
   const t = PU_TYPES[Math.floor(Math.random() * PU_TYPES.length)];
-  let x = 0,
-    z = 0,
+  let x,
+    z,
     tries = 0;
   do {
     x = rand(-38, 38);
