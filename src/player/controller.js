@@ -23,17 +23,24 @@ const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _wish = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
-function tryJump() {
-  if (S.mode !== "play") return;
-  if (player.onGround) {
+let coyoteTime = 0;
+let jumpBuffer = 0;
+let slideHeld = false;
+function consumeJump() {
+  if (jumpBuffer <= 0) return;
+  if (player.onGround || coyoteTime > 0) {
     player.vy = 8.2;
     player.onGround = false;
     player.jumps = 1;
+    player.sliding = 0;
+    coyoteTime = 0;
+    jumpBuffer = 0;
     emit("jump", { double: false });
     beep(300, 0.1, "sine", 0.05, 200);
   } else if (player.jumps < 2) {
     player.vy = 7.4;
     player.jumps = 2;
+    jumpBuffer = 0;
     emit("jump", { double: true });
     spawnP(
       player.pos.clone().add(V3(0, 0.2, 0)),
@@ -46,6 +53,11 @@ function tryJump() {
     );
     beep(420, 0.1, "sine", 0.05, 200);
   }
+}
+function tryJump() {
+  if (S.mode !== "play") return;
+  jumpBuffer = 0.1;
+  consumeJump();
 }
 function hurtPlayer(dmg) {
   if (player.hurtCd > 0 || S.mode !== "play") return;
@@ -68,6 +80,8 @@ function hurtPlayer(dmg) {
 }
 
 export function updatePlayer(dt) {
+  coyoteTime = player.onGround ? 0.1 : Math.max(0, coyoteTime - dt);
+  consumeJump();
   let ix = 0,
     iz = 0;
   if (input.keys.KeyW || input.keys.ArrowUp) iz += 1;
@@ -88,6 +102,7 @@ export function updatePlayer(dt) {
   // slide: crouch while sprinting & grounded
   if (
     crouch &&
+    !slideHeld &&
     sprint &&
     player.onGround &&
     player.sliding <= 0 &&
@@ -97,16 +112,16 @@ export function updatePlayer(dt) {
     spawnP(player.pos.clone().add(V3(0, 0.15, 0)), 12, 0xf0d488, 2, 0.5, -3, 1);
     beep(200, 0.15, "sine", 0.04, -80);
   }
-  if (player.sliding > 0) player.sliding -= dt;
-  let maxSpeed =
+  slideHeld = !!crouch;
+  if (player.sliding > 0) player.sliding = Math.max(0, player.sliding - dt);
+  const maxSpeed =
     (player.aiming
       ? 3.4
       : crouch && player.sliding <= 0
         ? 2.6
         : sprint
-          ? 9.2
+          ? 10
           : 5.6) * (S.pu.speed > 0 ? 1.4 : 1);
-  if (player.sliding > 0) maxSpeed = 11;
   const fwd = _fwd.set(Math.sin(look.yaw), 0, Math.cos(look.yaw));
   const rightV = _right.crossVectors(fwd, _up).normalize();
   const wish = _wish
@@ -114,16 +129,22 @@ export function updatePlayer(dt) {
     .addScaledVector(fwd, iz)
     .addScaledVector(rightV, ix);
   if (wish.lengthSq() > 0) wish.normalize();
-  const accel = player.onGround ? 28 : 8;
-  player.vel.x +=
-    (wish.x * maxSpeed - player.vel.x) *
-    Math.min(1, ((accel * dt) / Math.max(1, maxSpeed)) * 3);
-  player.vel.z +=
-    (wish.z * maxSpeed - player.vel.z) *
-    Math.min(1, ((accel * dt) / Math.max(1, maxSpeed)) * 3);
-  if (player.sliding > 0) {
-    player.vel.x += fwd.x * 18 * dt;
-    player.vel.z += fwd.z * 18 * dt;
+  if (player.sliding > 0 && player.onGround) {
+    // Retain entry direction and momentum, even when the view turns or W lifts.
+    player.vel.multiplyScalar(Math.exp(-0.65 * dt));
+  } else if (player.onGround) {
+    const dx = wish.x * maxSpeed - player.vel.x;
+    const dz = wish.z * maxSpeed - player.vel.z;
+    const delta = Math.hypot(dx, dz);
+    const accel = wish.lengthSq() > 0 ? maxSpeed / 0.12 : 5.6 / 0.1;
+    const blend = delta > 0 ? Math.min(1, accel * dt / delta) : 0;
+    player.vel.x += dx * blend;
+    player.vel.z += dz * blend;
+  } else {
+    // Preserve the existing air control.
+    const blend = Math.min(1, ((8 * dt) / Math.max(1, maxSpeed)) * 3);
+    player.vel.x += (wish.x * maxSpeed - player.vel.x) * blend;
+    player.vel.z += (wish.z * maxSpeed - player.vel.z) * blend;
   }
   // gravity / jump
   player.vy -= 22 * dt;
@@ -153,7 +174,9 @@ export function updatePlayer(dt) {
     player.vy = 0;
     player.onGround = true;
     player.jumps = 0;
+    consumeJump();
   }
+  jumpBuffer = Math.max(0, jumpBuffer - dt);
   player.pos.x += player.vel.x * dt;
   player.pos.z += player.vel.z * dt;
   player.pos.x = clamp(player.pos.x, -52, 52);

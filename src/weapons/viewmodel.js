@@ -1,8 +1,9 @@
 import * as THREE from "three";
-import { scene, camera, player } from "../core/state.js";
-import { lerp } from "../core/utils.js";
+import { scene, camera, player, look, input, state as S } from "../core/state.js";
+import { ScalarSpring, VectorSpring } from "../core/spring.js";
+import { on } from "../core/events.js";
 import { sun } from "../world/sky.js";
-import { buildSolarSoaker } from "./solarSoakerModel.js";
+import { buildSolarSoakerHD } from "./solarSoakerHD.js";
 
 export const vmScene = new THREE.Scene();
 export const vmCamera = new THREE.PerspectiveCamera(
@@ -11,17 +12,67 @@ export const vmCamera = new THREE.PerspectiveCamera(
   0.01,
   10,
 );
-const { group, muzzle } = buildSolarSoaker();
-const mount = new THREE.Group();
-// The preserved gun model points +Z; view space looks down -Z.
-group.rotation.y = Math.PI;
-mount.add(group);
-mount.position.set(0.32, -0.32, -1.05);
+export const mount = new THREE.Group();
 vmScene.add(mount);
+export let model, sight;
+let muzzle;
+const hipPosition = new THREE.Vector3(0.32, -0.30, -0.5);
+const hipRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, 0.14, -0.09));
+const adsPosition = new THREE.Vector3();
+const adsRotation = new THREE.Quaternion();
+const sightMatrix = new THREE.Matrix4();
+const sightScale = new THREE.Vector3();
+
+export function mountGun(nextModel, { flip = false } = {}) {
+  mount.clear();
+  model = nextModel;
+  sight = model.sight;
+  muzzle = model.muzzle;
+  model.group.rotation.y = flip ? Math.PI : 0;
+  mount.add(model.group);
+  sight.updateWorldMatrix(true, false);
+  sightMatrix.copy(mount.matrixWorld).invert().multiply(sight.matrixWorld);
+  sightMatrix.decompose(adsPosition, adsRotation, sightScale);
+  adsRotation.invert();
+  adsPosition.applyQuaternion(adsRotation).negate();
+  // A 58 mm clear window at 157 mm eye relief fills ~20% of a 16:9 view.
+  adsPosition.z -= 0.157;
+  vmScene.userData.viewmodel ??= {};
+  Object.assign(vmScene.userData.viewmodel, { mount, sight, model });
+  return model;
+}
+mountGun(buildSolarSoakerHD(), { flip: false });
+mount.position.copy(hipPosition);
+mount.quaternion.copy(hipRotation);
 const vmSun = new THREE.DirectionalLight();
 vmScene.add(vmSun, vmSun.target);
 vmScene.add(new THREE.HemisphereLight(0xbfeaff, 0xf2d38a, 1.0));
 const worldSun = new THREE.Vector3();
+const aim = new ScalarSpring(0, { stiffness: 729, damping: 54 });
+const sprintPose = new ScalarSpring(0, { stiffness: 1024, damping: 64 });
+const slidePose = new ScalarSpring();
+const sway = new VectorSpring(new THREE.Vector3(), { stiffness: 625, damping: 42 });
+const bob = new VectorSpring(new THREE.Vector3(), { stiffness: 1600, damping: 60 });
+const recoilPosition = new VectorSpring(new THREE.Vector3(), { stiffness: 2500, damping: 100 });
+const recoilRotation = new VectorSpring(new THREE.Vector3(), { stiffness: 2500, damping: 100 });
+const jumpLand = new ScalarSpring(0, { stiffness: 900, damping: 48 });
+const heat = new ScalarSpring(0, { stiffness: 25, damping: 10 });
+const motionTarget = new THREE.Vector3();
+const motionEuler = new THREE.Euler();
+const motionRotation = new THREE.Quaternion();
+const previousPosition = player.pos.clone();
+let previousYaw = look.yaw, previousPitch = look.pitch, bobPhase = 0;
+const radians = THREE.MathUtils.degToRad;
+
+on("shot", ({ weapon, aiming }) => {
+  const scale = aiming ? 0.4 : 1;
+  const burst = weapon === 2;
+  recoilPosition.value.z = Math.min(0.075, recoilPosition.value.z + (burst ? 0.065 : 0.015) * scale);
+  recoilRotation.value.x = Math.min(radians(7), recoilRotation.value.x + radians(burst ? 4.2 : 0.6) * scale);
+  recoilRotation.value.y += radians((Math.random() * 2 - 1) * (burst ? 1.1 : 0.3)) * scale;
+});
+on("jump", ({ double }) => { jumpLand.velocity += double ? 1.6 : 1.15; });
+on("land", ({ speed }) => { jumpLand.velocity -= Math.min(4, speed * 0.28); });
 
 export function updateViewmodel(dt) {
   vmScene.environment = scene.environment;
@@ -32,11 +83,58 @@ export function updateViewmodel(dt) {
   vmSun.position.copy(worldSun);
   vmSun.color.copy(sun.color);
   vmSun.intensity = sun.intensity;
-  const aim = player.aiming;
-  const blend = Math.min(1, dt * 12);
-  mount.position.x = lerp(mount.position.x, aim ? 0 : 0.32, blend);
-  mount.position.y = lerp(mount.position.y, aim ? -0.25 : -0.32, blend);
-  mount.position.z = lerp(mount.position.z, aim ? -1.15 : -1.05, blend);
+  if (dt >= 0.5) {
+    // startGame supplies a one-second warmup; discard motion from the last life.
+    aim.reset(player.aiming ? 1 : 0);
+    sprintPose.reset(); slidePose.reset(); sway.reset(); bob.reset();
+    recoilPosition.reset(); recoilRotation.reset(); jumpLand.reset(); heat.reset();
+    previousPosition.copy(player.pos);
+    previousYaw = look.yaw; previousPitch = look.pitch; bobPhase = 0;
+    dt = 0;
+  }
+  const aiming = aim.update(dt, player.aiming ? 1 : 0);
+  const free = 1 - aiming;
+  const sprinting = !player.aiming && player.sliding <= 0 && player.speedNow > 6 &&
+    (input.keys.ShiftLeft || input.keys.ShiftRight);
+  const sprint = sprintPose.update(dt, sprinting ? 1 : 0) * free;
+  const slide = slidePose.update(dt, player.sliding > 0 ? 1 : 0) * free;
+  const yawDelta = Math.atan2(Math.sin(look.yaw - previousYaw), Math.cos(look.yaw - previousYaw));
+  const pitchDelta = look.pitch - previousPitch;
+  previousYaw = look.yaw; previousPitch = look.pitch;
+  const limit = radians(2.5);
+  motionTarget.set(
+    THREE.MathUtils.clamp(-pitchDelta / Math.max(dt, 0.001) * 0.018, -limit, limit),
+    THREE.MathUtils.clamp(yawDelta / Math.max(dt, 0.001) * 0.018, -limit, limit),
+    0,
+  );
+  sway.update(dt, motionTarget);
+  const distance = Math.min(Math.hypot(player.pos.x - previousPosition.x, player.pos.z - previousPosition.z), player.speedNow * dt * 1.2);
+  previousPosition.copy(player.pos);
+  if (player.onGround) bobPhase = (bobPhase + distance * Math.PI * 2 / (1.6 + sprint * 0.6)) % (Math.PI * 2);
+  const amplitude = player.onGround && player.sliding <= 0 ? Math.min(1.5, player.speedNow / 5.6) * 0.011 : 0;
+  motionTarget.set(Math.sin(bobPhase) * amplitude, Math.sin(bobPhase * 2) * amplitude * 0.6, 0);
+  bob.update(dt, motionTarget);
+  recoilPosition.update(dt);
+  recoilRotation.update(dt);
+  jumpLand.update(dt);
+  mount.position.copy(hipPosition).lerp(adsPosition, aiming);
+  mount.position.x += (bob.value.x + sprint * 0.025) * free;
+  mount.position.y += (bob.value.y + jumpLand.value - sprint * 0.13 - slide * 0.035) * free;
+  mount.position.z += sprint * 0.045 + recoilPosition.value.z;
+  mount.quaternion.copy(hipRotation).slerp(adsRotation, aiming);
+  motionEuler.set(
+    sway.value.x * free - sprint * 0.28 + recoilRotation.value.x,
+    sway.value.y * free + sprint * 0.18 + recoilRotation.value.y,
+    sprint * 0.25 + slide * radians(10) - bob.value.x * 0.7 * free,
+  );
+  motionRotation.setFromEuler(motionEuler);
+  mount.quaternion.multiply(motionRotation);
+  const firing = (input.mouseDown || input.touchFire) && S.water > 0;
+  heat.stiffness = firing ? 25 : 9;
+  heat.damping = firing ? 10 : 6;
+  model.setHeat?.(heat.update(dt, firing ? 1 : 0));
+  model.setCharge?.(S.water / 100);
+  model.update(dt);
   vmScene.updateMatrixWorld(true);
 }
 
