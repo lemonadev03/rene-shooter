@@ -1,0 +1,37 @@
+# Rene Shooter
+
+Native browser ES modules; there is no production build. GitHub Pages serves `main` as-is. `index.html` pins Three.js 0.187.0 through an import map. Keep that map identical in both lab pages. npm dependencies are development tools only.
+
+## Structure
+
+- `src/main.js`: composition, startup, frame order, start/end transitions, debug harness.
+- `src/core/`: shared state, renderer, input, audio, assets, collisions, events, springs, helpers, quality tiers.
+- `src/world/`: beach, ocean, sun pools, sky, scenery.
+- `src/player/`, `src/weapons/`, `src/enemies/`: gameplay.
+- `src/vfx/`, `src/ui/`: feedback and interface.
+- `tools/monster-lab.html`, `tools/weapon-lab.html`: developer pages for viewing monsters and weapons.
+- `scripts/`: the tooling below.
+
+## Commands
+
+Use Node 22.13+ or 24+. Run `npm ci`, then `npx playwright install chromium`. On Linux, use `npx playwright install --with-deps chromium`.
+
+- `npm run serve`: static server for the repo on `http://127.0.0.1:8765/index.html`. Tools start their own server on a free port.
+- `npm run lint`: ESLint over `src/`, `scripts/` and the inline scripts in the HTML pages. Existing warnings have a per-rule ceiling; new ones fail.
+- `npm run check`: Node syntax checks, matching import maps, local import paths and named exports.
+- `npm run smoke`: loads the game, plays waves 1 and 2, fails on page or console errors and on `#err` text. Defaults to software WebGL (CI); `SMOKE_GPU=metal npm run smoke` uses the Mac GPU.
+- `npm run perf [-- --runs 3 --q high --json out.json]`: plays waves 1 to 5 with a seeded `Math.random` on the Mac GPU and prints frame times and shader program counts per wave. Local only; not part of CI.
+
+Run one browser at a time; every script closes its own. CI runs lint, check and smoke (`.github/workflows/checks.yml`).
+
+## Debug hooks
+
+- `window.__game`: `renderer`, `scene`, `camera`, `state`, `player`, `enemies`, `quality`, `killAll`, `aimAt`. Tests and benchmarks drive the game through it.
+- `?debug=1`: frame-time overlay.
+- `?q=low|medium|high|ultra`: forces a quality tier. Without it the tier is picked automatically.
+
+## Changes and tuning
+
+Preserve gameplay, visuals, random-call order, frame update order, and restart semantics in cleanup PRs. A runtime smoke is not a visual or gameplay equivalence proof; compare affected behavior and the lab pages directly.
+
+Tuning lives in `src/enemies/monsters.js` (`MON` and abilities), `src/enemies/waves.js`, `src/player/controller.js`, `src/weapons/projectiles.js`, `src/ui/powerups.js` (`PU_TYPES`), and `src/core/quality.js`. `OCEAN_GRACE` and `PLAYER_R` live in `src/core/state.js`.

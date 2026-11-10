@@ -18,6 +18,8 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory .
 
 Open http://127.0.0.1:8765/index.html
 
+With Node 22.13+ installed, `npm run serve` serves the same address without Python. Developer checks (`npm run lint`, `check`, `smoke`, `perf`) are described in `AGENTS.md`.
+
 ## Controls
 
 - WASD move, mouse look (pointer lock; drag also works)
