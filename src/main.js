@@ -51,6 +51,15 @@ import { initHitmarker, updateHitmarker } from "./vfx/hitmarker.js";
 import { PU_TYPES, updatePowerups, releasePowerup } from "./ui/powerups.js";
 import { updateHud, setWeapon, initShares } from "./ui/hud.js";
 import { stageWarmup, warmDom } from "./warmup.js";
+import {
+  MAX_HP,
+  MAX_CHARGE,
+  START_WEAPON,
+  DEFAULT_FOV,
+  START_PITCH,
+  NEW_RUN_PLAYER_Z,
+  NEW_RUN_POWERUP_TIMER,
+} from "./config/session.js";
 
 function gameOver(won) {
   state.mode = "end";
@@ -78,19 +87,19 @@ function startGame() {
   powerups.length = 0;
   Object.assign(state, {
     mode: "play",
-    hp: 100,
-    water: 100,
+    hp: MAX_HP,
+    water: MAX_CHARGE,
     score: 0,
     kills: 0,
     wave: 0,
     combo: 0,
     comboT: 0,
-    weapon: 1,
+    weapon: START_WEAPON,
     shake: 0,
     pu: { rapid: 0, power: 0, speed: 0, freeze: 0 },
-    puSpawnT: 5,
+    puSpawnT: NEW_RUN_POWERUP_TIMER,
   });
-  player.pos.set(0, 0, -12);
+  player.pos.set(0, 0, NEW_RUN_PLAYER_Z);
   player.vel.set(0, 0, 0);
   Object.assign(player, {
     vy: 0,
@@ -105,12 +114,12 @@ function startGame() {
     oceanTime: 0,
   });
   look.yaw = 0;
-  look.pitch = -0.16;
-  camera.fov = 72;
+  look.pitch = START_PITCH;
+  camera.fov = DEFAULT_FOV;
   camera.updateProjectionMatrix();
   updateCamera(0);
   updateViewmodel(1);
-  setWeapon(1);
+  setWeapon(START_WEAPON);
   $("title").classList.add("hidden");
   $("end").classList.add("hidden");
   $("hud").classList.remove("hidden");

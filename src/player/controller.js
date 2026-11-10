@@ -5,11 +5,54 @@ import {
   player,
   input,
   look,
-  PLAYER_R,
-  OCEAN_GRACE,
   refillSpots,
   lifecycle,
 } from "../core/state.js";
+import { MAX_HP, MAX_CHARGE } from "../config/session.js";
+import {
+  PLAYER_R,
+  PLAYER_HEIGHT,
+  OCEAN_GRACE,
+  OCEAN_WARNING_TIME,
+  OCEAN_RECOVERY_RATE,
+  OCEAN_DRAIN_BASE,
+  OCEAN_DRAIN_RAMP,
+  OCEAN_DRAIN_MAX,
+  OCEAN_SHAKE,
+  BOUNDS_MIN_X,
+  BOUNDS_MAX_X,
+  BOUNDS_MIN_Z,
+  BOUNDS_MAX_Z,
+  WALK_SPEED,
+  SPRINT_SPEED,
+  AIM_SPEED,
+  CROUCH_SPEED,
+  SPEED_POWERUP_MULT,
+  GROUND_ACCEL_TIME,
+  GROUND_STOP_SPEED,
+  GROUND_STOP_TIME,
+  AIR_CONTROL_RATE,
+  AIR_CONTROL_MIN_SPEED,
+  AIR_CONTROL_GAIN,
+  SLIDE_MIN_SPEED,
+  SLIDE_DURATION,
+  SLIDE_DECAY_RATE,
+  JUMP_VELOCITY,
+  DOUBLE_JUMP_VELOCITY,
+  GRAVITY,
+  COYOTE_TIME,
+  JUMP_BUFFER_TIME,
+  HARD_LANDING_VY,
+  HURT_COOLDOWN,
+  HURT_SHAKE,
+  CHARGE_RATE_SUN_POOL,
+  CHARGE_RATE_SUN_POOL_BOOST,
+  CHARGE_RATE_BEACH,
+  CHARGE_RATE_OCEAN,
+  LOW_CHARGE_HINT,
+  HP_REGEN_DELAY,
+  HP_REGEN_RATE,
+} from "../config/player.js";
 import { resolveCollision } from "../core/collision.js";
 import { updateBalls } from "../world/beach.js";
 import { PIER } from "../world/pier.js";
@@ -29,7 +72,7 @@ let slideHeld = false;
 function consumeJump() {
   if (jumpBuffer <= 0) return;
   if (player.onGround || coyoteTime > 0) {
-    player.vy = 8.2;
+    player.vy = JUMP_VELOCITY;
     player.onGround = false;
     player.jumps = 1;
     player.sliding = 0;
@@ -38,7 +81,7 @@ function consumeJump() {
     emit("jump", { double: false });
     beep(300, 0.1, "sine", 0.05, 200);
   } else if (player.jumps < 2) {
-    player.vy = 7.4;
+    player.vy = DOUBLE_JUMP_VELOCITY;
     player.jumps = 2;
     jumpBuffer = 0;
     emit("jump", { double: true });
@@ -56,14 +99,14 @@ function consumeJump() {
 }
 function tryJump() {
   if (S.mode !== "play") return;
-  jumpBuffer = 0.1;
+  jumpBuffer = JUMP_BUFFER_TIME;
   consumeJump();
 }
 function hurtPlayer(dmg) {
   if (player.hurtCd > 0 || S.mode !== "play") return;
-  player.hurtCd = 0.45;
+  player.hurtCd = HURT_COOLDOWN;
   S.hp -= dmg;
-  S.shake = 0.45;
+  S.shake = HURT_SHAKE;
   S.combo = 0;
   emit("hurt", { dmg });
   $("dmgVig").style.boxShadow = "inset 0 0 120px 45px rgba(255,40,0,.55)";
@@ -80,7 +123,7 @@ function hurtPlayer(dmg) {
 }
 
 export function updatePlayer(dt) {
-  coyoteTime = player.onGround ? 0.1 : Math.max(0, coyoteTime - dt);
+  coyoteTime = player.onGround ? COYOTE_TIME : Math.max(0, coyoteTime - dt);
   consumeJump();
   let ix = 0,
     iz = 0;
@@ -106,9 +149,9 @@ export function updatePlayer(dt) {
     sprint &&
     player.onGround &&
     player.sliding <= 0 &&
-    player.speedNow > 6
+    player.speedNow > SLIDE_MIN_SPEED
   ) {
-    player.sliding = 0.65;
+    player.sliding = SLIDE_DURATION;
     spawnP(player.pos.clone().add(V3(0, 0.15, 0)), 12, 0xf0d488, 2, 0.5, -3, 1);
     beep(200, 0.15, "sine", 0.04, -80);
   }
@@ -116,12 +159,12 @@ export function updatePlayer(dt) {
   if (player.sliding > 0) player.sliding = Math.max(0, player.sliding - dt);
   const maxSpeed =
     (player.aiming
-      ? 3.4
+      ? AIM_SPEED
       : crouch && player.sliding <= 0
-        ? 2.6
+        ? CROUCH_SPEED
         : sprint
-          ? 10
-          : 5.6) * (S.pu.speed > 0 ? 1.4 : 1);
+          ? SPRINT_SPEED
+          : WALK_SPEED) * (S.pu.speed > 0 ? SPEED_POWERUP_MULT : 1);
   const fwd = _fwd.set(Math.sin(look.yaw), 0, Math.cos(look.yaw));
   const rightV = _right.crossVectors(fwd, _up).normalize();
   const wish = _wish
@@ -131,36 +174,43 @@ export function updatePlayer(dt) {
   if (wish.lengthSq() > 0) wish.normalize();
   if (player.sliding > 0 && player.onGround) {
     // Retain entry direction and momentum, even when the view turns or W lifts.
-    player.vel.multiplyScalar(Math.exp(-0.65 * dt));
+    player.vel.multiplyScalar(Math.exp(-SLIDE_DECAY_RATE * dt));
   } else if (player.onGround) {
     const dx = wish.x * maxSpeed - player.vel.x;
     const dz = wish.z * maxSpeed - player.vel.z;
     const delta = Math.hypot(dx, dz);
-    const accel = wish.lengthSq() > 0 ? maxSpeed / 0.12 : 5.6 / 0.1;
+    const accel =
+      wish.lengthSq() > 0
+        ? maxSpeed / GROUND_ACCEL_TIME
+        : GROUND_STOP_SPEED / GROUND_STOP_TIME;
     const blend = delta > 0 ? Math.min(1, accel * dt / delta) : 0;
     player.vel.x += dx * blend;
     player.vel.z += dz * blend;
   } else {
     // Preserve the existing air control.
-    const blend = Math.min(1, ((8 * dt) / Math.max(1, maxSpeed)) * 3);
+    const blend = Math.min(
+      1,
+      ((AIR_CONTROL_RATE * dt) / Math.max(AIR_CONTROL_MIN_SPEED, maxSpeed)) *
+        AIR_CONTROL_GAIN,
+    );
     player.vel.x += (wish.x * maxSpeed - player.vel.x) * blend;
     player.vel.z += (wish.z * maxSpeed - player.vel.z) * blend;
   }
   // gravity / jump
-  player.vy -= 22 * dt;
+  player.vy -= GRAVITY * dt;
   player.pos.y += player.vy * dt;
   if (
     player.vy > 0 &&
     Math.abs(player.pos.x - PIER.x) < PIER.w / 2 &&
     Math.abs(player.pos.z - PIER.z) < PIER.len / 2 &&
-    player.pos.y + 1.85 > PIER.bottom
+    player.pos.y + PLAYER_HEIGHT > PIER.bottom
   ) {
-    player.pos.y = PIER.bottom - 1.85;
+    player.pos.y = PIER.bottom - PLAYER_HEIGHT;
     player.vy = 0;
   } // head bump under the pier deck
   if (player.pos.y <= 0) {
     if (!player.onGround) emit("land", { speed: -player.vy });
-    if (!player.onGround && player.vy < -6)
+    if (!player.onGround && player.vy < HARD_LANDING_VY)
       spawnP(
         player.pos.clone().add(V3(0, 0.1, 0)),
         8,
@@ -179,8 +229,8 @@ export function updatePlayer(dt) {
   jumpBuffer = Math.max(0, jumpBuffer - dt);
   player.pos.x += player.vel.x * dt;
   player.pos.z += player.vel.z * dt;
-  player.pos.x = clamp(player.pos.x, -52, 52);
-  player.pos.z = clamp(player.pos.z, -40, 26);
+  player.pos.x = clamp(player.pos.x, BOUNDS_MIN_X, BOUNDS_MAX_X);
+  player.pos.z = clamp(player.pos.z, BOUNDS_MIN_Z, BOUNDS_MAX_Z);
   // colliders push-out
   resolveCollision(player.pos, PLAYER_R);
   updateBalls(dt);
@@ -196,13 +246,14 @@ export function updateSurvival(dt) {
     (s) => Math.hypot(player.pos.x - s.x, player.pos.z - s.z) < s.r,
   );
   const chargeRate = spot
-    ? 58 + (input.keys.KeyR ? 22 : 0)
+    ? CHARGE_RATE_SUN_POOL +
+      (input.keys.KeyR ? CHARGE_RATE_SUN_POOL_BOOST : 0)
     : inOcean
-      ? -9
-      : 2.2;
+      ? CHARGE_RATE_OCEAN
+      : CHARGE_RATE_BEACH;
   const beforeCharge = S.water;
-  S.water = clamp(S.water + chargeRate * dt, 0, 100);
-  if (spot && beforeCharge < 100 && Math.random() < 0.4) {
+  S.water = clamp(S.water + chargeRate * dt, 0, MAX_CHARGE);
+  if (spot && beforeCharge < MAX_CHARGE && Math.random() < 0.4) {
     _v3.set(
       player.pos.x + rand(-0.6, 0.6),
       0.25,
@@ -220,12 +271,13 @@ export function updateSurvival(dt) {
   }
   if (spot && input.keys.KeyR && Math.random() < 0.3)
     beep(rand(700, 1100), 0.05, "sine", 0.02);
-  EL.hint.classList.toggle("show", S.water < 28);
+  EL.hint.classList.toggle("show", S.water < LOW_CHARGE_HINT);
   // 🌊 rip current: dip for refill, don't live out there — past the grace window HP drains harder the longer you stay
   if (inOcean) player.oceanTime += dt;
-  else player.oceanTime = Math.max(0, player.oceanTime - dt * 2);
+  else
+    player.oceanTime = Math.max(0, player.oceanTime - dt * OCEAN_RECOVERY_RATE);
   const over = player.oceanTime - OCEAN_GRACE;
-  if (player.oceanTime > 2.4) {
+  if (player.oceanTime > OCEAN_WARNING_TIME) {
     EL.ocean.classList.remove("hidden");
     EL.ocean.classList.toggle("draining", over > 0);
     EL.ocean.textContent = !inOcean
@@ -239,10 +291,13 @@ export function updateSurvival(dt) {
   }
   EL.cold.style.boxShadow = `inset 0 0 130px 45px rgba(14,116,233,${clamp((player.oceanTime - 1.5) / 5, 0, 0.55)})`;
   if (inOcean && over > 0 && S.mode === "play") {
-    const drain = Math.min(14, 3 + over * 1.4);
+    const drain = Math.min(
+      OCEAN_DRAIN_MAX,
+      OCEAN_DRAIN_BASE + over * OCEAN_DRAIN_RAMP,
+    );
     S.hp -= drain * dt;
     player.hurtCd = Math.max(player.hurtCd, 0);
-    S.shake = Math.max(S.shake, 0.09);
+    S.shake = Math.max(S.shake, OCEAN_SHAKE);
     if (Math.random() < 0.3) {
       _v3.set(
         player.pos.x + rand(-0.6, 0.6),
@@ -262,6 +317,7 @@ export function updateSurvival(dt) {
   }
   // slow hp regen after no hurt
   player.hurtCd -= dt;
-  if (player.hurtCd < -4 && S.hp < 100) S.hp = Math.min(100, S.hp + 4 * dt);
+  if (player.hurtCd < -HP_REGEN_DELAY && S.hp < MAX_HP)
+    S.hp = Math.min(MAX_HP, S.hp + HP_REGEN_RATE * dt);
 }
 export { tryJump, hurtPlayer };
