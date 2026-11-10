@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { clamp, rand, canvasTex, mat, box, sph } from "../core/utils.js";
 import { scene, refillSpots } from "../core/state.js";
+import { mergeStaticChildren } from "./staticBatch.js";
 const beaconAnims = []; // {mat,sprite,baseY,ring,phase}
 function makeLabel(main, sub = "", scale = 1) {
   const tex = canvasTex(512, 160, (g, w, h) => {
@@ -168,6 +169,9 @@ function buildPool(x, z, accent) {
     12,
   );
   g.add(orb);
+  mergeStaticChildren(rays);
+  mergeStaticChildren(panel);
+  mergeStaticChildren(g, [glow, core, orb]);
   addBeacon(g, 0, 0, {
     label: "☀️ SUN POOL",
     sub: "stand here to charge · it drifts",

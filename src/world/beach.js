@@ -19,6 +19,7 @@ import {
 } from "../core/collision.js";
 import { createBeachMaterials, updateSandQuality } from "./beach-materials.js";
 import { initScatter, updateScatterQuality } from "./scatter.js";
+import { mergeStaticChildren } from "./staticBatch.js";
 export const PIER = { x: 38, z: 26, len: 25, w: 3.6, bottom: 2.25 };
 let bonfireFlames = [];
 let sailboats = [];
@@ -114,6 +115,7 @@ export function initBeach() {
         opacity: 0.65,
       }),
     ];
+    const flames = [];
     for (let i = 0; i < 3; i++) {
       const f = new THREE.Mesh(
         new THREE.ConeGeometry(0.22, rand(1.1, 1.6), 8),
@@ -121,9 +123,11 @@ export function initBeach() {
       );
       f.position.set(rand(-0.25, 0.25), 0.8, rand(-0.25, 0.25));
       g.add(f);
+      flames.push(f);
       bonfireFlames.push({ f, ph: rand(0, 6) });
     }
     addCircle(x, z, 1.25, 0.55); // ring of rocks around the vent
+    mergeStaticChildren(g, [pool, ...flames]);
   }
   [-36, -18, -2, 18, 36].forEach((x) => bonfire(x, 11.5));
   // wooden pier reaching into the sea (east side): one continuous deck on stilts, so you can walk underneath it between the posts
@@ -249,6 +253,7 @@ export function initBeach() {
     );
     g.scale.setScalar(s);
     g.rotation.y = rand(0, 6.28);
+    mergeStaticChildren(g);
     scene.add(g);
     g.updateMatrixWorld(true);
     // trunk collider follows the lean: two capsules that block walkers, two upper ones that only stop shots
@@ -366,6 +371,7 @@ export function initBeach() {
     );
     net.position.y = 1.85;
     g.add(net);
+    mergeStaticChildren(g, [net]);
     scene.add(g);
     g.updateMatrixWorld(true);
     const pa = g.localToWorld(V3(-3, 0, 0)),
@@ -407,17 +413,21 @@ export function initBeach() {
       const bp = g.children[i].localToWorld(V3(0, -1.5, 0));
       addCircle(bp.x, bp.z, 0.28, 3);
     }
+    mergeStaticChildren(g);
   }
   // crates (rock scans and their footprints are registered in scatter.js)
+  const crates = new THREE.Group();
+  scene.add(crates);
   [
     [4, -20],
     [5.2, -20],
     [-22, -26],
   ].forEach(([x, z]) => {
     const cr = box(1, 1, 1, mat(0xb08954, 0.85), x, 0.5, z);
-    scene.add(cr);
+    crates.add(cr);
     addBox(x, z, 0.5, 0.5, 0, 1);
   });
+  mergeStaticChildren(crates);
 }
 export function updateBeach(dt, t) {
   updateSandQuality();
