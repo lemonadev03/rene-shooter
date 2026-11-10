@@ -1,22 +1,31 @@
 import * as THREE from "three";
 import { V3 } from "./utils.js";
+import {
+  MAX_HP,
+  MAX_CHARGE,
+  START_WEAPON,
+  DEFAULT_FOV,
+  START_PITCH,
+  TITLE_PLAYER_Z,
+  TITLE_POWERUP_TIMER,
+} from "../config/session.js";
 export const state = {
   mode: "title",
-  hp: 100,
-  water: 100,
+  hp: MAX_HP,
+  water: MAX_CHARGE,
   score: 0,
   kills: 0,
   wave: 0,
   combo: 0,
   comboT: 0,
-  weapon: 1,
+  weapon: START_WEAPON,
   shake: 0,
   time: 0,
   pu: { rapid: 0, power: 0, speed: 0, freeze: 0 },
-  puSpawnT: 6,
+  puSpawnT: TITLE_POWERUP_TIMER,
 };
 export const player = {
-  pos: V3(0, 0, -10),
+  pos: V3(0, 0, TITLE_PLAYER_Z),
   vel: V3(),
   yaw: 0,
   vy: 0,
@@ -30,11 +39,9 @@ export const player = {
   hurtCd: 0,
   oceanTime: 0,
 };
-export const OCEAN_GRACE = 4; // seconds of free swimming before the rip current starts draining HP
-
-// Yaw zero faces the ocean (+Z). Position is the capsule's feet.
-export const PLAYER_R = 0.45;
-export const look = { yaw: 0, pitch: -0.16 };
+// Moved to config/player.js; re-exported so existing importers keep working.
+export { OCEAN_GRACE, PLAYER_R } from "../config/player.js";
+export const look = { yaw: 0, pitch: START_PITCH };
 export const input = {
   keys: {},
   mouseDown: false,
@@ -51,7 +58,7 @@ export const input = {
 };
 export const scene = new THREE.Scene();
 export const camera = new THREE.PerspectiveCamera(
-  72,
+  DEFAULT_FOV,
   innerWidth / innerHeight,
   0.1,
   400,

@@ -35,7 +35,15 @@ Run one browser at a time; every script closes its own. CI runs lint, check, typ
 
 Preserve gameplay, visuals, random-call order, frame update order, and restart semantics in cleanup PRs. A runtime smoke is not a visual or gameplay equivalence proof; compare affected behavior and the lab pages directly.
 
-Tuning lives in `src/enemies/monsters.js` (`MON` and abilities), `src/enemies/waves.js`, `src/player/controller.js`, `src/weapons/projectiles.js`, `src/ui/powerups.js` (`PU_TYPES`), and `src/core/quality.js`. `OCEAN_GRACE` and `PLAYER_R` live in `src/core/state.js`.
+Gameplay tuning numbers live in `src/config/`, one dependency-free `// @ts-check` module per area, each constant with a JSDoc comment giving its unit:
+
+- `session.js`: HP and charge caps, plus the title and new-run defaults. They differ on purpose (player Z, first powerup timer), so keep both.
+- `player.js`: radius, ocean grace and rip current, speeds, jumping, gravity, charge and HP regeneration. `OCEAN_GRACE` and `PLAYER_R` are re-exported from `src/core/state.js`.
+- `weapons.js`: weapon IDs, cadence, charge costs, damage, spread and projectile numbers, including the monsters' water jets.
+- `waves.js`: final wave, count and stagger formulas, clear delay, rewards and the banner copy (`WAVE_SUBS`). Spawn stagger and the next-wave delay are wall-clock `setTimeout` (ms); the clear delay is game time (s).
+- `powerups.js`: `PU_TYPES` and pickup, lifetime, spawn cadence, cap and heal numbers. `PU_TYPES` is re-exported from `src/ui/powerups.js`.
+
+Elsewhere: `src/enemies/monsters.js` (`MON` and abilities), `pickKind` in `src/enemies/waves.js` (which monsters spawn), and `src/core/quality.js`. Shader, material and art constants stay beside the code that uses them.
 
 ## Rendering rules
 

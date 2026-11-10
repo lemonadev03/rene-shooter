@@ -19,6 +19,45 @@ import { getMuzzleWorldPosition } from "./viewmodel.js";
 import { emit } from "../core/events.js";
 import { setHeatBeamTarget } from "../vfx/beam.js";
 import { spawnImpact } from "../vfx/impacts.js";
+import {
+  WEAPON_HEAT_RAY,
+  EMPTY_CHARGE_COOLDOWN,
+  HEAT_RAY_RANGE,
+  HEAT_RAY_THICKNESS,
+  HEAT_RAY_SPREAD_AIMED,
+  HEAT_RAY_SPREAD_HIP,
+  HEAT_RAY_COOLDOWN,
+  HEAT_RAY_COOLDOWN_RAPID,
+  HEAT_RAY_COST,
+  HEAT_RAY_COST_RAPID,
+  HEAT_RAY_DAMAGE,
+  HEAT_RAY_DAMAGE_MEGA,
+  SPONGE_AIM_DISTANCE,
+  SPONGE_COOLDOWN,
+  SPONGE_COOLDOWN_RAPID,
+  SPONGE_COST,
+  SPONGE_COST_RAPID,
+  SPONGE_SHAKE,
+  SPONGE_COUNT,
+  SPONGE_SCALE,
+  SPONGE_SCALE_MEGA,
+  SPONGE_SPREAD_SIDE,
+  SPONGE_SPREAD_DOWN,
+  SPONGE_SPREAD_UP,
+  SPONGE_SPEED,
+  SPONGE_LIFE,
+  SPONGE_DAMAGE,
+  SPONGE_DAMAGE_MEGA,
+  SPONGE_RADIUS,
+  SPONGE_RADIUS_MEGA,
+  SPONGE_GRAVITY,
+  WATER_JET_SPEED,
+  WATER_JET_LEAD,
+  WATER_JET_LIFE,
+  WATER_JET_DAMAGE,
+  WATER_JET_TARGET_HEIGHT,
+  WATER_JET_HIT_RADIUS_SQ,
+} from "../config/weapons.js";
 const _tip = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _target = new THREE.Vector3();
@@ -31,7 +70,7 @@ let wasFiring = false;
 // Resolve the camera ray before drawing from the muzzle, so the crosshair owns the hit.
 function traceHeatRay() {
   const origin = camera.position;
-  let distance = 70, enemy = null, type = null;
+  let distance = HEAT_RAY_RANGE, enemy = null, type = null;
   if (_dir.y < -1e-6) {
     const ground = -origin.y / _dir.y;
     if (ground >= 0 && ground <= distance) { distance = ground; type = "sand"; }
@@ -49,7 +88,17 @@ function traceHeatRay() {
     if (t >= 0 && t < distance) { distance = t; enemy = e; type = "monster"; }
   }
   _impact.copy(origin).addScaledVector(_dir, distance);
-  if (projectileHitsSolid(origin.x, origin.y, origin.z, _impact.x, _impact.y, _impact.z, 0.025)) {
+  if (
+    projectileHitsSolid(
+      origin.x,
+      origin.y,
+      origin.z,
+      _impact.x,
+      _impact.y,
+      _impact.z,
+      HEAT_RAY_THICKNESS,
+    )
+  ) {
     _impact.copy(_hitP);
     enemy = null;
     type = "prop";
@@ -92,14 +141,14 @@ function shoot(dt) {
   wasFiring = firing;
   if (!firing) return;
   // Keep the ribbon attached to the current aim between damage ticks.
-  if (S.weapon === 1 && player.fireCd > 0 && S.water > 0) {
+  if (S.weapon === WEAPON_HEAT_RAY && player.fireCd > 0 && S.water > 0) {
     camera.getWorldDirection(_dir).add(_spread).normalize();
     traceHeatRay();
     setHeatBeamTarget(_impact);
   }
   if (player.fireCd > 0) return;
   if (S.water <= 0) {
-    player.fireCd = 0.25;
+    player.fireCd = EMPTY_CHARGE_COOLDOWN;
     beep(900, 0.06, "square", 0.04);
     $("hint").classList.add("show");
     return;
@@ -108,23 +157,26 @@ function shoot(dt) {
   getMuzzleWorldPosition(_tip);
   const rapid = S.pu.rapid > 0,
     mega = S.pu.power > 0;
-  if (S.weapon === 1) {
-    const spread = player.aiming ? 0.012 : 0.035;
+  if (S.weapon === WEAPON_HEAT_RAY) {
+    const spread = player.aiming ? HEAT_RAY_SPREAD_AIMED : HEAT_RAY_SPREAD_HIP;
     _spread.set(rand(-spread, spread), rand(-spread, spread), rand(-spread, spread));
     _dir.add(_spread).normalize();
   } else {
-    _target.copy(camera.position).addScaledVector(_dir, 42);
+    _target.copy(camera.position).addScaledVector(_dir, SPONGE_AIM_DISTANCE);
     _dir.copy(_target).sub(_tip).normalize();
   }
   emit("shot", { weapon: S.weapon, aiming: player.aiming, mega, origin: _tip, dir: _dir });
-  if (S.weapon === 1) {
-    player.fireCd = rapid ? 0.028 : 0.055;
-    S.water = Math.max(0, S.water - (rapid ? 0.55 : 1.1));
+  if (S.weapon === WEAPON_HEAT_RAY) {
+    player.fireCd = rapid ? HEAT_RAY_COOLDOWN_RAPID : HEAT_RAY_COOLDOWN;
+    S.water = Math.max(
+      0,
+      S.water - (rapid ? HEAT_RAY_COST_RAPID : HEAT_RAY_COST),
+    );
     const { enemy, type } = traceHeatRay();
     setHeatBeamTarget(_impact);
     if (type) spawnImpact(type, _impact);
     if (enemy) {
-      const dmg = mega ? 14 : 7;
+      const dmg = mega ? HEAT_RAY_DAMAGE_MEGA : HEAT_RAY_DAMAGE;
       damageEnemy(enemy, dmg, _impact);
       emit("hit", { pos: _impact, enemy, dmg, killed: enemy.dead });
       if (enemy.dead) emit("kill", { pos: _impact, enemy });
@@ -132,25 +184,25 @@ function shoot(dt) {
     noiseHit(0.035, 0.025, 1500);
   } else {
     // SPONGE BURST: dry sponge cubes that drink monsters dry
-    player.fireCd = rapid ? 0.22 : 0.42;
-    S.water = Math.max(0, S.water - (rapid ? 3.5 : 7));
-    S.shake = Math.max(S.shake, 0.12);
-    for (let i = 0; i < 5; i++) {
+    player.fireCd = rapid ? SPONGE_COOLDOWN_RAPID : SPONGE_COOLDOWN;
+    S.water = Math.max(0, S.water - (rapid ? SPONGE_COST_RAPID : SPONGE_COST));
+    S.shake = Math.max(S.shake, SPONGE_SHAKE);
+    for (let i = 0; i < SPONGE_COUNT; i++) {
       const m = _getMesh(_sPool, spongeGeo, spongeMat);
-      m.scale.setScalar(mega ? 1.7 : 1.15);
+      m.scale.setScalar(mega ? SPONGE_SCALE_MEGA : SPONGE_SCALE);
       m.rotation.set(rand(0, 3), rand(0, 3), 0);
       m.position.copy(_tip);
       const v = _dir.clone();
-      v.x += rand(-0.07, 0.07);
-      v.y += rand(-0.05, 0.07);
-      v.z += rand(-0.07, 0.07);
-      v.normalize().multiplyScalar(30);
+      v.x += rand(-SPONGE_SPREAD_SIDE, SPONGE_SPREAD_SIDE);
+      v.y += rand(-SPONGE_SPREAD_DOWN, SPONGE_SPREAD_UP);
+      v.z += rand(-SPONGE_SPREAD_SIDE, SPONGE_SPREAD_SIDE);
+      v.normalize().multiplyScalar(SPONGE_SPEED);
       bullets.push({
         m,
         v,
-        life: 1.1,
-        dmg: mega ? 32 : 16,
-        r: mega ? 0.42 : 0.3,
+        life: SPONGE_LIFE,
+        dmg: mega ? SPONGE_DAMAGE_MEGA : SPONGE_DAMAGE,
+        r: mega ? SPONGE_RADIUS_MEGA : SPONGE_RADIUS,
         pool: _sPool,
         spin: 1,
       });
@@ -166,13 +218,13 @@ function spitFire(e) {
   _v3.y += 1.0 * e.s;
   m.position.copy(_v3);
   const v = player.pos.clone();
-  v.y += 1.1;
-  v.sub(_v3).normalize().multiplyScalar(13.5);
+  v.y += WATER_JET_TARGET_HEIGHT;
+  v.sub(_v3).normalize().multiplyScalar(WATER_JET_SPEED);
   // slight lead so strafing matters but shots threaten
-  v.x += player.vel.x * 0.12;
-  v.z += player.vel.z * 0.12;
-  v.normalize().multiplyScalar(13.5);
-  fireballs.push({ m, v, life: 3 });
+  v.x += player.vel.x * WATER_JET_LEAD;
+  v.z += player.vel.z * WATER_JET_LEAD;
+  v.normalize().multiplyScalar(WATER_JET_SPEED);
+  fireballs.push({ m, v, life: WATER_JET_LIFE });
   beep(320, 0.14, "sawtooth", 0.035, -160);
 }
 
@@ -180,7 +232,7 @@ export function updateProjectiles(dt, _frame) {
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.life -= dt;
-    b.v.y -= 3.5 * dt;
+    b.v.y -= SPONGE_GRAVITY * dt;
     const bx0 = b.m.position.x,
       by0 = b.m.position.y,
       bz0 = b.m.position.z;
@@ -260,9 +312,9 @@ export function updateProjectiles(dt, _frame) {
       dead = true;
     } // solid prop: spit splashes
     _v1.copy(player.pos);
-    _v1.y += 1.1;
-    if (b.m.position.distanceToSquared(_v1) < 0.56) {
-      hurtPlayer(11);
+    _v1.y += WATER_JET_TARGET_HEIGHT;
+    if (b.m.position.distanceToSquared(_v1) < WATER_JET_HIT_RADIUS_SQ) {
+      hurtPlayer(WATER_JET_DAMAGE);
       spawnP(b.m.position, 10, 0x38bdf8, 2, 0.4, -3, 2);
       dead = true;
     }

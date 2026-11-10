@@ -5,13 +5,17 @@ import { beep } from "../core/audio.js";
 import { spawnP } from "../vfx/particles.js";
 import { makeLabel } from "../vfx/labels.js";
 import { feed } from "./hud.js";
-const PU_TYPES = [
-  { k: "rapid", emoji: "⚡", name: "RAPID RAY", col: 0xffd23a, dur: 10 },
-  { k: "power", emoji: "☀️", name: "MEGA HEAT", col: 0xff7b1c, dur: 12 },
-  { k: "speed", emoji: "👟", name: "SPEED SODA", col: 0x2dd4bf, dur: 10 },
-  { k: "heal", emoji: "❤️", name: "+40 HP", col: 0xef4444, dur: 0 },
-  { k: "freeze", emoji: "🧂", name: "SALT STORM", col: 0xf5f5f0, dur: 6 },
-];
+import { MAX_HP } from "../config/session.js";
+import {
+  PU_TYPES,
+  POWERUP_PICKUP_RADIUS,
+  POWERUP_LIFETIME,
+  POWERUP_SPAWN_MIN,
+  POWERUP_SPAWN_MAX,
+  POWERUP_MAX_ALIVE,
+  HEAL_AMOUNT,
+  POWERUP_SCORE,
+} from "../config/powerups.js";
 
 function buildPowerup(t) {
   const g = new THREE.Group();
@@ -72,7 +76,7 @@ function buildPowerup(t) {
 // powerup draws its label canvas once. Nothing is disposed: that would release
 // compiled programs.
 // spawnPowerup keeps at most two alive, so two of a type is the most that is used at once.
-const POWERUP_POOL_SIZE = 2;
+const POWERUP_POOL_SIZE = POWERUP_MAX_ALIVE;
 const powerupPools = new Map(PU_TYPES.map((t) => [t, []]));
 const pooledGroups = new WeakSet();
 function acquirePowerup(t) {
@@ -104,19 +108,19 @@ function spawnPowerup() {
   const { g, orb, ring } = acquirePowerup(t);
   g.position.set(x, 0, z);
   scene.add(g);
-  powerups.push({ g, orb, ring, t, life: 26, phase: rand(0, 6) });
+  powerups.push({ g, orb, ring, t, life: POWERUP_LIFETIME, phase: rand(0, 6) });
   spawnP(g.position.clone().setY(1), 16, t.col, 2, 0.6, 0, 2.2);
 }
 function applyPowerup(p) {
   const t = p.t;
   if (t.k === "heal") {
-    S.hp = Math.min(100, S.hp + 40);
+    S.hp = Math.min(MAX_HP, S.hp + HEAL_AMOUNT);
     feed("❤️ +40 HP");
   } else {
     S.pu[t.k] = t.dur;
     feed(`${t.emoji} ${t.name}! ${t.dur}s`);
   }
-  S.score += 25;
+  S.score += POWERUP_SCORE;
   spawnP(p.g.position.clone().setY(1.1), 26, t.col, 3, 0.7, -1, 3);
   beep(660, 0.09, "square", 0.06);
   setTimeout(() => beep(880, 0.09, "square", 0.06), 80);
@@ -127,8 +131,8 @@ function updatePowerups(dt) {
   if (S.mode === "play") {
     S.puSpawnT -= dt;
     if (S.puSpawnT <= 0) {
-      S.puSpawnT = rand(10, 15);
-      if (powerups.length < 2) spawnPowerup();
+      S.puSpawnT = rand(POWERUP_SPAWN_MIN, POWERUP_SPAWN_MAX);
+      if (powerups.length < POWERUP_MAX_ALIVE) spawnPowerup();
     }
   }
   for (let i = powerups.length - 1; i >= 0; i--) {
@@ -150,7 +154,7 @@ function updatePowerups(dt) {
         player.pos.x - p.g.position.x,
         player.pos.z - p.g.position.z,
       );
-      if (d < 1.5) {
+      if (d < POWERUP_PICKUP_RADIUS) {
         applyPowerup(p);
         releasePowerup(p);
         powerups.splice(i, 1);

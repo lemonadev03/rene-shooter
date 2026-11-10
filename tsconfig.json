@@ -10,5 +10,14 @@
     "lib": ["ES2022", "DOM"],
     "skipLibCheck": true
   },
-  "include": ["src/core/events.js", "src/core/spring.js", "src/core/quality.js"]
+  "include": [
+    "src/core/events.js",
+    "src/core/spring.js",
+    "src/core/quality.js",
+    "src/config/session.js",
+    "src/config/player.js",
+    "src/config/weapons.js",
+    "src/config/waves.js",
+    "src/config/powerups.js"
+  ]
 }
