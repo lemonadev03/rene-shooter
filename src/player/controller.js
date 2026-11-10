@@ -17,6 +17,7 @@ import { inSea } from "../world/ocean.js";
 import { spawnP } from "../vfx/particles.js";
 import { beep } from "../core/audio.js";
 import { EL, feed } from "../ui/hud.js";
+import { emit } from "../core/events.js";
 const _v3 = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -28,10 +29,12 @@ function tryJump() {
     player.vy = 8.2;
     player.onGround = false;
     player.jumps = 1;
+    emit("jump", { double: false });
     beep(300, 0.1, "sine", 0.05, 200);
   } else if (player.jumps < 2) {
     player.vy = 7.4;
     player.jumps = 2;
+    emit("jump", { double: true });
     spawnP(
       player.pos.clone().add(V3(0, 0.2, 0)),
       10,
@@ -50,6 +53,7 @@ function hurtPlayer(dmg) {
   S.hp -= dmg;
   S.shake = 0.45;
   S.combo = 0;
+  emit("hurt", { dmg });
   $("dmgVig").style.boxShadow = "inset 0 0 120px 45px rgba(255,40,0,.55)";
   setTimeout(
     () =>
@@ -134,6 +138,7 @@ export function updatePlayer(dt) {
     player.vy = 0;
   } // head bump under the pier deck
   if (player.pos.y <= 0) {
+    if (!player.onGround) emit("land", { speed: -player.vy });
     if (!player.onGround && player.vy < -6)
       spawnP(
         player.pos.clone().add(V3(0, 0.1, 0)),

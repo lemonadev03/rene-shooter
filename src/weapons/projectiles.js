@@ -17,6 +17,7 @@ import { spawnP } from "../vfx/particles.js";
 import { damageEnemy } from "../enemies/monsters.js";
 import { hurtPlayer } from "../player/controller.js";
 import { getMuzzleWorldPosition } from "./viewmodel.js";
+import { emit } from "../core/events.js";
 const _tip = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _target = new THREE.Vector3();
@@ -76,6 +77,7 @@ function shoot(dt) {
   _dir.copy(_target).sub(_tip).normalize();
   const rapid = S.pu.rapid > 0,
     mega = S.pu.power > 0;
+  emit("shot", { weapon: S.weapon, aiming: player.aiming, mega, origin: _tip, dir: _dir });
   if (S.weapon === 1) {
     player.fireCd = rapid ? 0.028 : 0.055;
     S.water = Math.max(0, S.water - (rapid ? 0.55 : 1.1));
@@ -189,6 +191,8 @@ export function updateProjectiles(dt, _frame) {
           rr = 0.8 * e.s + b.r;
         if (dx * dx + dy * dy + dz * dz < rr * rr) {
           damageEnemy(e, b.dmg, b.m.position);
+          emit("hit", { pos: b.m.position, enemy: e, dmg: b.dmg, killed: e.dead });
+          if (e.dead) emit("kill", { pos: b.m.position, enemy: e });
           dead = true;
           break;
         }
