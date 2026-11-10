@@ -71,21 +71,38 @@ function initShares() {
   });
 }
 
+// last value written per element property, so unchanged values skip the DOM write
+const _last = {};
+function setText(key, v) {
+  if (_last[key] === v) return;
+  _last[key] = v;
+  EL[key].textContent = v;
+}
+function setWidth(key, v) {
+  const k = key + "W";
+  if (_last[k] === v) return;
+  _last[k] = v;
+  EL[key].style.width = v;
+}
 export function updateHud(frame, expectedAlive, powerupTypes) {
   if (frame - _hudFrame >= 5) {
     _hudFrame = frame;
-    EL.combo.textContent = S.combo > 1 ? "COMBO ×" + S.combo + " 🔥➜💦" : "";
-    EL.hpBar.style.width = S.hp + "%";
-    EL.hpTxt.textContent = Math.ceil(S.hp);
-    EL.waterBar.style.width = S.water + "%";
-    EL.waterTxt.textContent = Math.ceil(S.water) + "%";
-    EL.score.textContent = S.score.toLocaleString();
-    EL.left.textContent = "🔥 " + expectedAlive + " left";
+    setText("combo", S.combo > 1 ? "COMBO ×" + S.combo + " 🔥➜💦" : "");
+    setWidth("hpBar", S.hp + "%");
+    setText("hpTxt", Math.ceil(S.hp));
+    setWidth("waterBar", S.water + "%");
+    setText("waterTxt", Math.ceil(S.water) + "%");
+    setText("score", S.score.toLocaleString());
+    setText("left", "🔥 " + expectedAlive + " left");
     const act = powerupTypes
       .filter((t) => t.dur > 0 && S.pu[t.k] > 0)
       .map((t) => `${t.emoji} ${t.name} ${Math.ceil(S.pu[t.k])}s`);
-    EL.power.classList.toggle("hidden", !act.length);
-    if (act.length) EL.power.textContent = act.join("  ·  ");
+    const hide = !act.length;
+    if (_last.powerHidden !== hide) {
+      _last.powerHidden = hide;
+      EL.power.classList.toggle("hidden", hide);
+    }
+    if (act.length) setText("power", act.join("  ·  "));
   }
 }
 export { EL, showBanner, feed, setWeapon, initShares };

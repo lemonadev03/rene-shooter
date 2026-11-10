@@ -38,6 +38,7 @@ for (let i = 0; i < PMAX; i++) {
   pPos[i * 3 + 1] = -50;
 }
 let pIdx = 0;
+let colorDirty = false;
 const _pCol = new THREE.Color();
 function spawnP(pos, n, color, spd = 2.5, life = 0.6, grav = -4, up = 1.8) {
   const c = _pCol.set(color);
@@ -61,6 +62,7 @@ function spawnP(pos, n, color, spd = 2.5, life = 0.6, grav = -4, up = 1.8) {
     pCol[idx * 3 + 1] = c.g;
     pCol[idx * 3 + 2] = c.b;
   }
+  colorDirty = true;
 }
 function updateParts(dt) {
   let any = false;
@@ -85,7 +87,10 @@ function updateParts(dt) {
   }
   if (any) {
     pGeo.attributes.position.needsUpdate = true;
-    pGeo.attributes.color.needsUpdate = true;
+    if (colorDirty) {
+      pGeo.attributes.color.needsUpdate = true;
+      colorDirty = false;
+    }
   }
 }
 
