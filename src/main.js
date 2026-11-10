@@ -135,6 +135,7 @@ window.__game = {
   aimAt,
 };
 // Retain the existing harness's renderer lookup alongside the complete debug API.
+window.__game.viewmodel = vmScene.userData.viewmodel;
 window.__renderer = renderer;
 
 finishAssetRegistration();
