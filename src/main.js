@@ -35,6 +35,10 @@ import {
 } from "./weapons/projectiles.js";
 import { updateMonsters } from "./enemies/monsters.js";
 import {
+  initMonsterLights,
+  updateMonsterLights,
+} from "./enemies/monsterLights.js";
+import {
   spawnWave,
   resetWaves,
   updateWaves,
@@ -120,6 +124,7 @@ initOcean();
 initPools();
 initParticles();
 initBeam();
+initMonsterLights();
 initImpacts();
 initHitmarker();
 lifecycle.gameOver = gameOver;
@@ -170,6 +175,7 @@ function animate(now) {
     updateHitmarker(dt);
     if (state.mode !== "play") {
       updateTitleCamera(t);
+      updateMonsterLights();
       renderFrame(dt);
       return;
     }
@@ -188,6 +194,7 @@ function animate(now) {
       if (state.comboT <= 0) state.combo = 0;
     }
     updateHud(frame, alive, PU_TYPES);
+    updateMonsterLights();
     renderFrame(dt);
   } catch (error) {
     $("err").textContent = "⚠ " + error.message;
