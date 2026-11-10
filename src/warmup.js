@@ -37,12 +37,11 @@ export function stageWarmup() {
   for (const mesh of projectiles) {
     stage(mesh, staged);
   }
+  // The beam and scorch marks live in the scene for the whole game (never culled, hidden
+  // until first use), so they are only shown here, not staged: unstaging removes objects.
   const effects = [heatBeamMesh, scorchMarksMesh];
   const hidden = effects.map((mesh) => mesh.visible);
-  for (const mesh of effects) {
-    mesh.visible = true;
-    stage(mesh, staged);
-  }
+  for (const mesh of effects) mesh.visible = true;
   return () => {
     for (const object of staged) scene.remove(object);
     returnWarmupMeshes(projectiles);
@@ -52,8 +51,6 @@ export function stageWarmup() {
     }
     effects.forEach((mesh, i) => {
       mesh.visible = hidden[i];
-      mesh.position.y = 0;
-      mesh.frustumCulled = false;
     });
     // Materials and geometries are deliberately not disposed: disposing a material
     // releases its compiled program, and the next real monster would recompile it

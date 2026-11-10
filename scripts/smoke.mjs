@@ -75,6 +75,14 @@ try {
         : gl.getParameter(gl.RENDERER);
     });
     if (backend === "swiftshader") assert.match(report.webgl, /swiftshader/i);
+    // Persistent effects must survive the loading warm-up, which stages and unstages objects.
+    const missingEffects = await page.evaluate(() => {
+      const scene = window.__game.scene;
+      return ["Heat Ray beam", "Heat Ray sand scorches"].filter(
+        (name) => scene.getObjectByName(name)?.parent !== scene,
+      );
+    });
+    assert.deepEqual(missingEffects, [], "effects missing from the scene");
     await page.locator("#playBtn").click({ timeout: 30000 });
     await page.evaluate(async () => {
       window.__smokeWaveState = (await import("/src/core/state.js")).waveState;
