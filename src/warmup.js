@@ -1,11 +1,20 @@
 import { $ } from "./core/utils.js";
 import { scene } from "./core/state.js";
-import { MON, buildMonster } from "./enemies/monsters.js";
+import {
+  MONSTER_POOL_SIZE,
+  acquireMonster,
+  releaseMonster,
+} from "./enemies/monsters.js";
 import {
   takeWarmupMeshes,
   returnWarmupMeshes,
 } from "./weapons/projectiles.js";
-import { PU_TYPES, buildPowerup } from "./ui/powerups.js";
+import {
+  PU_TYPES,
+  POWERUP_POOL_SIZE,
+  acquirePowerup,
+  releasePowerup,
+} from "./ui/powerups.js";
 import { heatBeamMesh } from "./vfx/beam.js";
 import { scorchMarksMesh } from "./vfx/impacts.js";
 
@@ -22,16 +31,28 @@ function stage(object, staged) {
   staged.push(object);
 }
 
-// Adds one of everything that first appears during play and returns a function that
-// takes it out again. Run it around the compile and warm-up renders in
-// initializeRendering so no shader program is compiled mid-game.
+// Adds everything that first appears during play (a full pool of each monster and
+// powerup) and returns a function that takes it out again. Run it around the
+// compile and warm-up renders in initializeRendering so no shader program is
+// compiled mid-game.
 export function stageWarmup() {
   const staged = [];
-  for (let kind = 0; kind < MON.length; kind++) {
-    stage(buildMonster(kind).g, staged);
+  const monsters = [];
+  const powerups = [];
+  // The pools start full, so nothing is built or uploaded during play.
+  for (let kind = 0; kind < MONSTER_POOL_SIZE.length; kind++) {
+    for (let i = 0; i < MONSTER_POOL_SIZE[kind]; i++) {
+      const monster = acquireMonster(kind);
+      monsters.push(monster);
+      stage(monster.g, staged);
+    }
   }
   for (const type of PU_TYPES) {
-    stage(buildPowerup(type).g, staged);
+    for (let i = 0; i < POWERUP_POOL_SIZE; i++) {
+      const powerup = acquirePowerup(type);
+      powerups.push(powerup);
+      stage(powerup.g, staged);
+    }
   }
   const projectiles = takeWarmupMeshes();
   for (const mesh of projectiles) {
@@ -44,6 +65,15 @@ export function stageWarmup() {
   for (const mesh of effects) mesh.visible = true;
   return () => {
     for (const object of staged) scene.remove(object);
+    // The staged monsters and powerups become the pooled ones. Their position is
+    // restored on reuse; culling is not, so turn it back on here.
+    for (const pooled of [...monsters, ...powerups]) {
+      pooled.g.traverse((node) => {
+        node.frustumCulled = true;
+      });
+    }
+    monsters.forEach(releaseMonster);
+    powerups.forEach(releasePowerup);
     returnWarmupMeshes(projectiles);
     for (const mesh of projectiles) {
       mesh.position.y = 0;
@@ -54,8 +84,7 @@ export function stageWarmup() {
     });
     // Materials and geometries are deliberately not disposed: disposing a material
     // releases its compiled program, and the next real monster would recompile it
-    // mid-wave. The staged monster and powerup groups are left to the garbage
-    // collector (a later pooling change could reuse them).
+    // mid-wave.
   };
 }
 

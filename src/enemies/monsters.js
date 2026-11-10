@@ -1,6 +1,5 @@
-import { $ } from "../core/utils.js";
 import * as THREE from "three";
-import { clamp, rand, mat, box, cyl, sph } from "../core/utils.js";
+import { $, clamp, rand, mat, box, cyl, sph } from "../core/utils.js";
 import {
   scene,
   state as S,
@@ -128,7 +127,7 @@ function makeGlow(color, intensity, distance) {
   anchor.userData.glow = { color, intensity, distance, decay: 2 };
   return anchor;
 }
-function buildMonster(kind) {
+function createMonster(kind) {
   const def = MON[kind];
   const s = def.s;
   const g = new THREE.Group();
@@ -374,9 +373,62 @@ function buildMonster(kind) {
   g.add(hpBar);
   return { g, flames, arms, bodyMat, hpBar, s, shieldMesh, spinPart, glow };
 }
+// Pooled monsters keep their materials and geometry for good: disposing them would
+// release compiled programs and bring back mid-play compiles. A monster's own state
+// (transforms, visibility, body glow) is recorded once at creation and restored on
+// every reuse; the pool never holds more than the most that were alive at once.
+const monsterPools = MON.map(() => []);
+// Most of each kind that one wave can hold at once (waves.js pickKind), counting the
+// two droplets a splitter leaves behind. Warm-up builds this many up front.
+const MONSTER_POOL_SIZE = [8, 3, 3, 3, 2, 2, 3, 2];
+const monsterSlots = new WeakMap();
+function acquireMonster(kind) {
+  const pooled = monsterPools[kind].pop();
+  if (!pooled) {
+    const m = createMonster(kind);
+    const nodes = [];
+    m.g.traverse((node) => {
+      nodes.push({
+        node,
+        position: node.position.clone(),
+        quaternion: node.quaternion.clone(),
+        scale: node.scale.clone(),
+        visible: node.visible,
+      });
+    });
+    monsterSlots.set(m.g, {
+      kind,
+      m,
+      nodes,
+      emissive: m.bodyMat.emissiveIntensity,
+      pooled: false,
+    });
+    return m;
+  }
+  const slot = monsterSlots.get(pooled.g);
+  slot.pooled = false;
+  for (const saved of slot.nodes) {
+    saved.node.position.copy(saved.position);
+    saved.node.quaternion.copy(saved.quaternion);
+    saved.node.scale.copy(saved.scale);
+    saved.node.visible = saved.visible;
+  }
+  pooled.bodyMat.emissiveIntensity = slot.emissive;
+  return pooled;
+}
+// Safe to call twice for one monster. Never call it while `enemies` is being
+// iterated: a splitter's children are acquired during that loop and must not get a
+// group that is still being visited.
+function releaseMonster(e) {
+  const slot = monsterSlots.get(e.g);
+  if (!slot || slot.pooled) return;
+  slot.pooled = true;
+  scene.remove(e.g);
+  monsterPools[slot.kind].push(slot.m);
+}
 function addEnemy(kind, x, z) {
   const def = MON[kind];
-  const m = buildMonster(kind);
+  const m = acquireMonster(kind);
   m.g.position.set(x, 0, z);
   scene.add(m.g);
   const wv = Math.max(1, S.wave || 1);
@@ -724,16 +776,16 @@ export function updateMonsters(dt, t, spitFire) {
         (0.78 + 0.22 * (e.hp / e.maxHp)) *
         e.boost,
     );
-    e.flames.forEach((f, fi) => {
+    for (let fi = 0; fi < e.flames.length; fi++) {
       const sc =
         (1 + Math.sin(t * 11 + fi * 1.7) * 0.28) *
         (0.35 + 0.65 * (e.hp / e.maxHp)) *
         (1 - e.wet * 0.4);
-      f.scale.set(sc, sc * (1 + Math.sin(t * 13 + fi) * 0.2), sc);
-    });
-    e.arms.forEach(
-      (a, ai) => (a.rotation.x = Math.sin(e.phase + ai * Math.PI) * 0.6 - 0.4),
-    );
+      e.flames[fi].scale.set(sc, sc * (1 + Math.sin(t * 13 + fi) * 0.2), sc);
+    }
+    for (let ai = 0; ai < e.arms.length; ai++) {
+      e.arms[ai].rotation.x = Math.sin(e.phase + ai * Math.PI) * 0.6 - 0.4;
+    }
     if (e.spinPart) e.spinPart.rotation.z += dt * 2.4;
     e.bodyMat.emissiveIntensity =
       e.state === "windup" ? 1.6 : 0.45 + 0.75 * (e.hp / e.maxHp);
@@ -779,4 +831,12 @@ export function updateMonsters(dt, t, spitFire) {
 
   return alive;
 }
-export { MON, buildMonster, addEnemy, killEnemy, damageEnemy };
+export {
+  MON,
+  MONSTER_POOL_SIZE,
+  acquireMonster,
+  releaseMonster,
+  addEnemy,
+  killEnemy,
+  damageEnemy,
+};
