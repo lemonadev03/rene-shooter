@@ -18,18 +18,45 @@ import { damageEnemy } from "../enemies/monsters.js";
 import { hurtPlayer } from "../player/controller.js";
 import { getMuzzleWorldPosition } from "./viewmodel.js";
 import { emit } from "../core/events.js";
+import { setHeatBeamTarget } from "../vfx/beam.js";
+import { spawnImpact } from "../vfx/impacts.js";
 const _tip = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _target = new THREE.Vector3();
 const _v1 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
-const bulletGeo = new THREE.SphereGeometry(0.09, 8, 8),
-  bulletMat = new THREE.MeshStandardMaterial({
-    color: 0xffd23a,
-    emissive: 0xff9500,
-    emissiveIntensity: 2,
-    roughness: 0.2,
-  });
+const _spread = new THREE.Vector3();
+const _impact = new THREE.Vector3();
+let wasFiring = false;
+
+// Resolve the camera ray before drawing from the muzzle, so the crosshair owns the hit.
+function traceHeatRay() {
+  const origin = camera.position;
+  let distance = 70, enemy = null, type = null;
+  if (_dir.y < -1e-6) {
+    const ground = -origin.y / _dir.y;
+    if (ground >= 0 && ground <= distance) { distance = ground; type = "sand"; }
+  }
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const x = origin.x - e.pos.x,
+      y = origin.y - (e.pos.y + 0.7 * e.s),
+      z = origin.z - e.pos.z,
+      projection = x * _dir.x + y * _dir.y + z * _dir.z,
+      c = x * x + y * y + z * z - (0.8 * e.s) ** 2,
+      discriminant = projection * projection - c;
+    if (discriminant < 0) continue;
+    const t = c <= 0 ? 0 : -projection - Math.sqrt(discriminant);
+    if (t >= 0 && t < distance) { distance = t; enemy = e; type = "monster"; }
+  }
+  _impact.copy(origin).addScaledVector(_dir, distance);
+  if (projectileHitsSolid(origin.x, origin.y, origin.z, _impact.x, _impact.y, _impact.z, 0.025)) {
+    _impact.copy(_hitP);
+    enemy = null;
+    type = "prop";
+  }
+  return { enemy, type };
+}
 const spongeGeo = new THREE.BoxGeometry(0.3, 0.22, 0.3),
   spongeMat = new THREE.MeshStandardMaterial({
     color: 0xffe23a,
@@ -47,8 +74,7 @@ const fireGeo = new THREE.SphereGeometry(0.18, 10, 10),
     opacity: 0.92,
   });
 // mesh pools: avoid alloc/GC churn at ~18 shots/sec
-const _bPool = [],
-  _fPool = [],
+const _fPool = [],
   _sPool = [];
 function _getMesh(pool, geo, mat) {
   const m = pool.pop() || new THREE.Mesh(geo, mat);
@@ -63,43 +89,48 @@ function shoot(dt) {
   player.fireCd -= dt;
   const firing = (input.mouseDown || input.touchFire) && S.mode === "play";
   player.firing = firing;
-  if (!firing || player.fireCd > 0) return;
+  if (firing && !wasFiring) player.fireCd = 0;
+  wasFiring = firing;
+  if (!firing) return;
+  // Keep the ribbon attached to the current aim between damage ticks.
+  if (S.weapon === 1 && player.fireCd > 0 && S.water > 0) {
+    camera.getWorldDirection(_dir).add(_spread).normalize();
+    traceHeatRay();
+    setHeatBeamTarget(_impact);
+  }
+  if (player.fireCd > 0) return;
   if (S.water <= 0) {
     player.fireCd = 0.25;
     beep(900, 0.06, "square", 0.04);
     $("hint").classList.add("show");
     return;
   }
-  // aim: converge bullets to a point far along the camera (crosshair) ray
   camera.getWorldDirection(_dir);
   getMuzzleWorldPosition(_tip);
-  _target.copy(camera.position).addScaledVector(_dir, 42);
-  _dir.copy(_target).sub(_tip).normalize();
   const rapid = S.pu.rapid > 0,
     mega = S.pu.power > 0;
+  if (S.weapon === 1) {
+    const spread = player.aiming ? 0.012 : 0.035;
+    _spread.set(rand(-spread, spread), rand(-spread, spread), rand(-spread, spread));
+    _dir.add(_spread).normalize();
+  } else {
+    _target.copy(camera.position).addScaledVector(_dir, 42);
+    _dir.copy(_target).sub(_tip).normalize();
+  }
   emit("shot", { weapon: S.weapon, aiming: player.aiming, mega, origin: _tip, dir: _dir });
   if (S.weapon === 1) {
     player.fireCd = rapid ? 0.028 : 0.055;
     S.water = Math.max(0, S.water - (rapid ? 0.55 : 1.1));
-    const m = _getMesh(_bPool, bulletGeo, bulletMat);
-    m.scale.setScalar(mega ? 1.5 : 1);
-    m.position.copy(_tip);
-    const spread = player.aiming ? 0.012 : 0.035;
-    const v = _dir.clone();
-    v.x += rand(-spread, spread);
-    v.y += rand(-spread, spread);
-    v.z += rand(-spread, spread);
-    v.normalize().multiplyScalar(46);
-    bullets.push({
-      m,
-      v,
-      life: 1.35,
-      dmg: mega ? 14 : 7,
-      r: mega ? 0.24 : 0.16,
-      pool: _bPool,
-    });
-    spawnP(_tip, 2, 0xffb020, 1, 0.25, 1, 0.8);
-    if (Math.random() < 0.35) noiseHit(0.07, 0.035, 1200);
+    const { enemy, type } = traceHeatRay();
+    setHeatBeamTarget(_impact);
+    if (type) spawnImpact(type, _impact);
+    if (enemy) {
+      const dmg = mega ? 14 : 7;
+      damageEnemy(enemy, dmg, _impact);
+      emit("hit", { pos: _impact, enemy, dmg, killed: enemy.dead });
+      if (enemy.dead) emit("kill", { pos: _impact, enemy });
+    }
+    noiseHit(0.035, 0.025, 1500);
   } else {
     // SPONGE BURST: dry sponge cubes that drink monsters dry
     player.fireCd = rapid ? 0.22 : 0.42;
@@ -181,7 +212,7 @@ export function updateProjectiles(dt, _frame) {
       b.m.rotation.y += dt * 7;
     }
     if ((_frame + i) % 3 === 0)
-      spawnP(b.m.position, 1, b.spin ? 0xffe23a : 0xffb020, 0.25, 0.22, 1, 0.4); // heat/sponge trail at 1/3 rate
+      spawnP(b.m.position, 1, 0xffe23a, 0.25, 0.22, 1, 0.4); // sponge trail at 1/3 rate
     if (!dead)
       for (const e of enemies) {
         if (e.dead) continue;
@@ -198,7 +229,7 @@ export function updateProjectiles(dt, _frame) {
         }
       }
     if (dead) {
-      _freeMesh(b.pool || _bPool, b.m);
+      _freeMesh(b.pool, b.m);
       bullets.splice(i, 1);
     }
   }
@@ -243,7 +274,8 @@ export function updateProjectiles(dt, _frame) {
   }
 }
 export function resetProjectiles() {
-  bullets.forEach((b) => _freeMesh(b.pool || _bPool, b.m));
+  wasFiring = false;
+  bullets.forEach((b) => _freeMesh(b.pool, b.m));
   bullets.length = 0;
   fireballs.forEach((b) => _freeMesh(_fPool, b.m));
   fireballs.length = 0;
