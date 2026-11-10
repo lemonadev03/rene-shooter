@@ -54,8 +54,6 @@ addEventListener("resize", resize);
 export async function initializeRendering() {
   await displayReady;
   setScale(qualityCap());
-  const costs = [];
-  let previousFrame;
   const gl = renderer.getContext();
   async function completeGPUFrame() {
     const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -66,19 +64,17 @@ export async function initializeRendering() {
     }
     gl.deleteSync(fence);
   }
-  // Fence only during startup: command submission/finish alone can under-report
-  // completed GPU work through Chromium's asynchronous command buffer.
-  for (let i = 0; i < 28; i++) {
-    const frameNow = await new Promise(requestAnimationFrame);
-    const start = performance.now();
-    renderer.info.reset();
+  // Time whole frames instead of fencing each one: fence polling only resolves in
+  // timer-sized steps and over-counted, which pushed fast GPUs down to the low tier.
+  const deltas = [];
+  let previousFrame = await new Promise(requestAnimationFrame);
+  for (let i = 0; i < 32; i++) {
     post.render(1 / 120);
-    await completeGPUFrame();
-    if (i >= 8) costs.push(Math.max(performance.now() - start,
-      quality.measuredIntervalMs < 4 ? frameNow - previousFrame : 0));
-    previousFrame = frameNow;
+    const now = await new Promise(requestAnimationFrame);
+    if (i >= 8) deltas.push(now - previousFrame);
+    previousFrame = now;
   }
-  pickQuality(costs);
+  pickQuality(deltas);
   configureShadows();
   setScale(qualityCap());
   // Compile the selected AA/effect variant before allowing play.

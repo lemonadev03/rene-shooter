@@ -36,16 +36,24 @@ export async function measureDisplayInterval(paint) {
   quality.targetFrameMs = Math.max(1000 / 120, Math.min(1000 / 30, deltas[16]));
 }
 
-export function pickQuality(samples) {
-  const sorted = [...samples].sort((a, b) => a - b);
-  const cost = sorted[Math.floor(sorted.length * 0.9)];
-  quality.warmupFrameMs = cost;
+export function pickQuality(frameDeltas) {
+  const sorted = [...frameDeltas].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  quality.warmupFrameMs = median;
   if (quality.automatic) {
-    const budget = Math.min(quality.targetFrameMs, 1000 / 120);
-    // Reserve headroom for monsters, projectiles and input during play.
-    setQuality(cost < budget * 0.36 ? "ultra"
-      : cost < budget * 0.6 ? "high"
-        : cost < budget * 1.1 ? "medium" : "low");
+    const interval = quality.measuredIntervalMs;
+    if (interval < 4) {
+      // Unthrottled (no vsync): rAF runs ahead of the GPU, so deltas under-report.
+      // Auto never picks ultra (ask with ?q=ultra); high plus dynamic resolution holds 120 fps.
+      const budget = 1000 / 120;
+      setQuality(median < budget * 0.9 ? "high"
+        : median < budget * 1.6 ? "medium" : "low");
+    } else {
+      // Vsync caps deltas at the display interval, so only missed frames show up.
+      // Stay on high while it keeps pace; dynamic resolution absorbs small shortfalls.
+      setQuality(median <= interval * 1.25 ? "high"
+        : median <= interval * 2.2 ? "medium" : "low");
+    }
   }
   quality.warmingUp = false;
 }
