@@ -23,7 +23,7 @@ Use Node 22.13+ or 24+. Run `npm ci`, then `npx playwright install chromium`. On
 - `npm run typecheck`: `tsc --noEmit` over the files listed in `tsconfig.json` `include`. To opt a file in, add `// @ts-check` and JSDoc types to it, then add it to `include`; CI runs it.
 - `npm run perf [-- --runs 3 --q high --json out.json]`: plays waves 1 to 5 with a seeded `Math.random` on the Mac GPU and prints frame times and shader program counts per wave. Local only; not part of CI.
 
-Run one browser at a time; every script closes its own. CI runs lint, check and smoke (`.github/workflows/checks.yml`).
+Run one browser at a time; every script closes its own. CI runs lint, check, typecheck and smoke (`.github/workflows/checks.yml`).
 
 ## Debug hooks
 
