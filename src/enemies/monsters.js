@@ -13,6 +13,7 @@ import { feed } from "../ui/hud.js";
 import { hurtPlayer } from "../player/controller.js";
 import { inSea, bedY } from "../world/ocean.js";
 import { resolveCollision } from "../core/collision.js";
+import { mergeStaticChildren } from "../world/staticBatch.js";
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
@@ -371,6 +372,12 @@ function createMonster(kind) {
   );
   hpBar.position.set(0, 1.85, 0.01);
   g.add(hpBar);
+  // Eyes, brows, mouth, feet, horns and the like never move on their own, so each
+  // material's worth becomes one mesh. Everything the record or update loop touches stays out.
+  mergeStaticChildren(g, [hpBarBg, hpBar, spinPart, glow]);
+  if (shieldMesh) {
+    mergeStaticChildren(shieldMesh);
+  }
   return { g, flames, arms, bodyMat, hpBar, s, shieldMesh, spinPart, glow };
 }
 // Pooled monsters keep their materials and geometry for good: disposing them would

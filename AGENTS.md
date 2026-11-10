@@ -40,3 +40,4 @@ Tuning lives in `src/enemies/monsters.js` (`MON` and abilities), `src/enemies/wa
 ## Rendering rules
 
 - Never add or remove lights during play. Three.js puts the scene's light counts into every lit shader's program key, so a change recompiles the whole scene (a 0.1–2 s freeze). Glowing monsters use `makeGlow` anchors in `src/enemies/monsters.js`, which `src/enemies/monsterLights.js` copies into `MAX_MONSTER_LIGHTS` fixed slots each frame. If a wave can hold more glowing monsters at once, raise that constant.
+- Static parts of new monsters and props (eyes, feet, horns, trim) go through `mergeStaticChildren` in `src/world/staticBatch.js` at the end of their builder, with every animated or later-referenced child passed in `exclude`. Each separate mesh costs a draw call in both the main and shadow passes.
