@@ -4,7 +4,7 @@
 
 **▶ Play it live: https://lemonadev03.github.io/rene-shooter/**
 
-A third-person beach shooter built with Three.js. You play Rene: a 3D model based on the Ateneo #2 photo (white "ATENEO" #2 jersey with "RENE" on the back, blue shorts, grey knee brace on the left leg, white shoes), armed with the Solar Soaker (Sun-Dry 3000) heat blaster, fighting waves of water monsters on a beach. Firing drains solar charge; drifting sun pools (patches of concentrated sunlight) recharge it fast, plain beach sunshine trickle-charges it, and saltwater shorts it out.
+A first-person beach shooter built with Three.js. You play Rene: a 3D model based on the Ateneo #2 photo (white "ATENEO" #2 jersey with "RENE" on the back, blue shorts, grey knee brace on the left leg, white shoes), armed with the Solar Soaker (Sun-Dry 3000) heat blaster, fighting waves of water monsters on a beach. Firing drains solar charge; drifting sun pools (patches of concentrated sunlight) recharge it fast, plain beach sunshine trickle-charges it, and saltwater shorts it out.
 
 Powerups drop around the beach (⚡ Rapid Ray, ☀️ Mega Heat, 👟 Speed Soda, ❤️ +40 HP, 🧂 Salt Storm). Charge the gun in the drifting ☀️ sun pools — and stay out of the ocean: it drains charge, and after a 4-second grace window the rip current drains HP harder the longer you stay in.
 
@@ -29,4 +29,4 @@ Open http://127.0.0.1:8765/index.html
 
 Survive 5 waves of water monsters, from droplets and surfers to coral wardens and rain shamans.
 
-Files: `index.html`, `style.css`, `game.js` (Three.js 0.160 via CDN import map).
+Files: `index.html`, `style.css`, `src/` native ES modules (Three.js 0.187.0 via jsDelivr import map).

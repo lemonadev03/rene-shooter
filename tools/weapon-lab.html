@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solar Soaker — Weapon Lab</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#a39a8e;color:#f0eee8;font:13px system-ui,sans-serif}canvas{display:block;width:100%;height:100%}h1{position:fixed;top:25px;left:30px;margin:0;font-size:21px;font-weight:550;letter-spacing:-.6px;text-shadow:0 1px 12px #0008}#controls{position:fixed;bottom:24px;left:30px;right:30px;display:flex;gap:22px;align-items:center;padding:14px 18px;border:1px solid #ffffff24;border-radius:9px;background:#191e24e8;backdrop-filter:blur(12px)}#presets{display:flex;gap:5px}button{border:0;border-radius:5px;background:transparent;color:#d7d8d7;padding:9px 13px;font:inherit;cursor:pointer}button[aria-pressed=true]{background:#b88c43;color:white}label{display:flex;align-items:center;gap:10px;white-space:nowrap}input{accent-color:#e5ad51;width:130px}output{min-width:27px;color:#e7b96f;font-variant-numeric:tabular-nums}#stats{margin-left:auto;color:#c1c7c6;font:12px ui-monospace,monospace;white-space:nowrap}#loading{position:fixed;top:60px;left:30px;color:#eee}body.capture h1,body.capture #controls{display:none}@media(max-width:900px){#controls{flex-wrap:wrap;gap:10px}#stats{margin-left:0}button{padding:8px}input{width:80px}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"}}</script>
+</head>
+<body>
+<h1>Solar Soaker</h1><div id="loading">Loading materials…</div>
+<div id="controls">
+<div id="presets"><button data-preset="a">Side</button><button data-preset="b">Three-quarter</button><button data-preset="c">Hip</button><button data-preset="d">Aim down sights</button></div>
+<label>Heat <input id="heat" type="range" min="0" max="1" step=".01" value="0"><output id="heatValue">0%</output></label>
+<label>Charge <input id="charge" type="range" min="0" max="1" step=".01" value="1"><output id="chargeValue">100%</output></label>
+<div id="stats">Preparing renderer</div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
+import { buildSolarSoakerHD } from '../src/weapons/solarSoakerHD.js';
+const renderer=new THREE.WebGLRenderer({antialias:devicePixelRatio<1.5,alpha:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(innerWidth,innerHeight);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.03;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+renderer.domElement.style.cssText='position:fixed;inset:0;z-index:1';
+for(const element of document.querySelectorAll('h1,#controls,#loading'))element.style.zIndex=2;
+const backdrop=document.createElement('canvas');backdrop.style.cssText='position:fixed;inset:0;z-index:0';document.body.prepend(backdrop);
+const backdropCache=new Map();
+const scene=new THREE.Scene();
+const sun=new THREE.DirectionalLight(0xffead1,2.4);sun.position.set(-3,5,-2);sun.layers.enable(1);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-.9,right:.9,top:.9,bottom:-.9,near:.1,far:12});sun.shadow.radius=3;sun.shadow.bias=-.00015;sun.shadow.normalBias=.001;scene.add(sun);
+const fill=new THREE.HemisphereLight(0xb9d4ee,0x8e775a,.45);fill.layers.enable(1);scene.add(fill);
+const weapon=buildSolarSoakerHD({textureBase:'../assets/weapons/solar-soaker/'});
+weapon.group.traverse(o=>o.layers.set(1));scene.add(weapon.group);
+const perspective=new THREE.PerspectiveCamera(35,innerWidth/innerHeight,.012,40);
+const ortho=new THREE.OrthographicCamera(-.7,.7,.35,-.35,.01,20);
+let camera=ortho, preset='a';
+const studio=new THREE.Color(0xa39b91);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xaaa093,roughness:1}));
+floor.receiveShadow=true;floor.rotation.x=-Math.PI/2;floor.position.y=-.105;scene.add(floor);
+// A soft contact occlusion patch grounds the product views without a runtime shadow pass.
+const shadowCanvas=document.createElement('canvas');shadowCanvas.width=512;shadowCanvas.height=128;
+const ctx=shadowCanvas.getContext('2d'),data=ctx.createImageData(512,128);
+for(let y=0;y<128;y++)for(let x=0;x<512;x++){const r=Math.hypot((x-256)/256,(y-64)/64),i=(y*512+x)*4;data.data[i]=24;data.data[i+1]=22;data.data[i+2]=18;data.data[i+3]=Math.max(0,1-r*r)*Math.exp(-r*r*3)*45;}ctx.putImageData(data,0,0);
+const shadow=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.24),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));
+shadow.rotation.x=-Math.PI/2;shadow.position.set(0,-.104,-.21);scene.add(shadow);
+const env=await new HDRLoader().loadAsync('../assets/weapons/solar-soaker/lab-sky-1k.hdr');
+env.mapping=THREE.EquirectangularReflectionMapping;
+const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromEquirectangular(env).texture;pmrem.dispose();
+scene.environmentIntensity=.85;
+function setPreset(value){
+  preset=value;const aspect=innerWidth/innerHeight;
+  floor.visible=shadow.visible=value==='a'||value==='b';
+  scene.background=(value==='a'||value==='b')?studio:null;
+  scene.backgroundRotation.set(0,1.7,0);scene.backgroundIntensity=.85;
+  if(value==='a'){
+    camera=ortho;const height=.68;ortho.left=-height*aspect/2;ortho.right=height*aspect/2;ortho.top=height/2;ortho.bottom=-height/2;
+    camera.position.set(-2,.14,-.145);camera.lookAt(0,.14,-.145);
+  }else if(value==='b'){
+    camera=perspective;camera.fov=28;camera.position.set(-1.02,.58,-.97);camera.lookAt(0,.14,-.14);
+  }else if(value==='c'){
+    // Camera-relative viewmodel placement: the stock falls outside the lower-right frame.
+    camera=perspective;camera.fov=55;camera.position.set(-.18,.34,.49);camera.lookAt(-.19,.06,-1.5);
+  }else{
+    camera=perspective;camera.fov=55;camera.position.set(.035,.32288,.29);camera.lookAt(.035,.32288,-2);
+  }
+  camera.position.z-=.08;camera.layers.enable(1);camera.updateProjectionMatrix();
+  backdrop.style.display=value==='c'||value==='d'?'block':'none';
+  if(value==='c'||value==='d'){
+    // These fixed camera presets share a static photographic sky. Bake it once at native DPR;
+    // every interactive frame then shades only the weapon, preserving the HDRI lighting.
+    const key=value+':'+renderer.domElement.width+'x'+renderer.domElement.height;
+    let image=backdropCache.get(key);
+    if(!image){
+      const visible=weapon.group.visible;weapon.group.visible=false;scene.background=env;
+      renderer.render(scene,camera);
+      image=document.createElement('canvas');image.width=renderer.domElement.width;image.height=renderer.domElement.height;
+      image.getContext('2d').drawImage(renderer.domElement,0,0);backdropCache.set(key,image);
+      weapon.group.visible=visible;scene.background=null;
+    }
+    backdrop.width=image.width;backdrop.height=image.height;backdrop.getContext('2d').drawImage(image,0,0);
+  }
+  document.querySelectorAll('[data-preset]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.preset===value)));
+}
+for(const button of document.querySelectorAll('[data-preset]'))button.addEventListener('click',()=>setPreset(button.dataset.preset));
+for(const [id,setter] of [['heat',weapon.setHeat],['charge',weapon.setCharge]])document.getElementById(id).addEventListener('input',e=>{setter(+e.target.value);document.getElementById(id+'Value').value=Math.round(e.target.value*100)+'%';});
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);perspective.aspect=innerWidth/innerHeight;setPreset(preset);});
+await weapon.group.userData.ready;
+setPreset(new URLSearchParams(location.search).get('preset')||'b');
+await renderer.compileAsync(scene,camera);
+renderer.shadowMap.needsUpdate=true;renderer.render(scene,camera);
+document.getElementById('loading').remove();
+let previous=performance.now(),lastStats=previous,frames=0;const frameTimes=[];
+function frame(now){
+  const dt=now-previous;previous=now;
+  if(frameTimes.length<100000)frameTimes.push(dt);
+  weapon.update(dt/1000);renderer.render(scene,camera);frames++;
+  if(now-lastStats>500){document.getElementById('stats').textContent=`${Math.round(frames*1000/(now-lastStats))} fps`;frames=0;lastStats=now;}
+  requestAnimationFrame(frame);
+}
+window.weaponLab={renderer,scene,weapon,get camera(){return camera;},setPreset,setHeat:weapon.setHeat,setCharge:weapon.setCharge,frameTimes,
+  capture(value=true){document.body.classList.toggle('capture',value);},
+  measureGun(){
+    const background=scene.background,mask=camera.layers.mask;scene.background=null;camera.layers.set(1);renderer.info.reset();renderer.render(scene,camera);
+    const result={calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};camera.layers.mask=mask;scene.background=background;return result;
+  },
+  async benchmark(ms=5000){
+    frameTimes.length=0;await new Promise(resolve=>setTimeout(resolve,ms));
+    const sorted=frameTimes.slice(20).sort((a,b)=>a-b),p=q=>sorted[Math.min(sorted.length-1,Math.floor(sorted.length*q))];
+    return {frames:sorted.length,averageMs:sorted.reduce((a,b)=>a+b,0)/sorted.length,p50Ms:p(.5),p95Ms:p(.95),p99Ms:p(.99),width:renderer.domElement.width,height:renderer.domElement.height,dpr:devicePixelRatio};
+  }
+};
+requestAnimationFrame(frame);window.__weaponLabReady=true;
+console.log('Solar Soaker lab ready — Three.js '+THREE.REVISION);
+</script>
+</body>
+</html>
