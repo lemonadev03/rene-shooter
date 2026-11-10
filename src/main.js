@@ -33,7 +33,7 @@ import {
   updateProjectiles,
   resetProjectiles,
 } from "./weapons/projectiles.js";
-import { updateMonsters } from "./enemies/monsters.js";
+import { updateMonsters, releaseMonster } from "./enemies/monsters.js";
 import {
   initMonsterLights,
   updateMonsterLights,
@@ -48,7 +48,7 @@ import { initParticles, updateParts } from "./vfx/particles.js";
 import { initBeam, updateBeam } from "./vfx/beam.js";
 import { initImpacts, updateImpacts } from "./vfx/impacts.js";
 import { initHitmarker, updateHitmarker } from "./vfx/hitmarker.js";
-import { PU_TYPES, updatePowerups } from "./ui/powerups.js";
+import { PU_TYPES, updatePowerups, releasePowerup } from "./ui/powerups.js";
 import { updateHud, setWeapon, initShares } from "./ui/hud.js";
 import { stageWarmup, warmDom } from "./warmup.js";
 
@@ -71,10 +71,10 @@ function gameOver(won) {
 function startGame() {
   resetWaves();
   resetInput();
-  enemies.forEach((e) => scene.remove(e.g));
+  enemies.forEach((e) => releaseMonster(e));
   enemies.length = 0;
   resetProjectiles();
-  powerups.forEach((p) => scene.remove(p.g));
+  powerups.forEach((p) => releasePowerup(p));
   powerups.length = 0;
   Object.assign(state, {
     mode: "play",

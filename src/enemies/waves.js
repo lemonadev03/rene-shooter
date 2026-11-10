@@ -1,7 +1,7 @@
 import { state as S, enemies, waveState } from "../core/state.js";
 import { rand } from "../core/utils.js";
 import { beep } from "../core/audio.js";
-import { addEnemy, killEnemy } from "./monsters.js";
+import { addEnemy, killEnemy, releaseMonster } from "./monsters.js";
 import { showBanner } from "../ui/hud.js";
 function pickKind(n, i) {
   if (n === 1) return i % 4 === 3 ? 3 : 0; // imps + dashers
@@ -70,7 +70,10 @@ export function killAll() {
 }
 export function updateWaves(dt, gameOver) {
   for (let i = enemies.length - 1; i >= 0; i--) {
-    if (enemies[i].dead) enemies.splice(i, 1);
+    if (enemies[i].dead) {
+      releaseMonster(enemies[i]);
+      enemies.splice(i, 1);
+    }
   }
   const alive = enemies.length;
   if (alive || waveState.pending || waveState.nextTimer || S.mode !== "play") {

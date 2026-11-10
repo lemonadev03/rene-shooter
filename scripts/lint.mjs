@@ -36,9 +36,7 @@ console.log(
   JSON.stringify({ checked: results.length, errors, counts }, null, 2),
 );
 // Reject additional debt while allowing the untouched baseline to pass.
-const warningBudget = {
-  "no-duplicate-imports": 1,
-};
+const warningBudget = {};
 const addedDebt = Object.entries(counts).some(
   ([rule, count]) => count > (warningBudget[rule] || 0),
 );

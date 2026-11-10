@@ -66,7 +66,30 @@ function buildPowerup(t) {
   blob2.rotation.x = -Math.PI / 2;
   blob2.position.y = 0.04;
   g.add(blob2);
-  return { g, orb, ring };
+  return { g, orb, ring, t };
+}
+// Whole groups are reused, label sprite and texture included, so each pooled
+// powerup draws its label canvas once. Nothing is disposed: that would release
+// compiled programs.
+// spawnPowerup keeps at most two alive, so two of a type is the most that is used at once.
+const POWERUP_POOL_SIZE = 2;
+const powerupPools = new Map(PU_TYPES.map((t) => [t, []]));
+const pooledGroups = new WeakSet();
+function acquirePowerup(t) {
+  const pooled = powerupPools.get(t).pop();
+  if (!pooled) return buildPowerup(t);
+  pooledGroups.delete(pooled.g);
+  pooled.g.visible = true;
+  pooled.orb.rotation.set(0, 0, 0);
+  pooled.orb.position.y = 1.05;
+  pooled.ring.rotation.set(Math.PI / 2.4, 0, 0);
+  return pooled;
+}
+function releasePowerup(p) {
+  if (pooledGroups.has(p.g)) return;
+  pooledGroups.add(p.g);
+  scene.remove(p.g);
+  powerupPools.get(p.t).push({ g: p.g, orb: p.orb, ring: p.ring, t: p.t });
 }
 function spawnPowerup() {
   const t = PU_TYPES[Math.floor(Math.random() * PU_TYPES.length)];
@@ -78,7 +101,7 @@ function spawnPowerup() {
     z = rand(-32, 10);
     tries++;
   } while (Math.hypot(x - player.pos.x, z - player.pos.z) < 7 && tries < 8);
-  const { g, orb, ring } = buildPowerup(t);
+  const { g, orb, ring } = acquirePowerup(t);
   g.position.set(x, 0, z);
   scene.add(g);
   powerups.push({ g, orb, ring, t, life: 26, phase: rand(0, 6) });
@@ -118,7 +141,7 @@ function updatePowerups(dt) {
     p.ring.rotation.z += dt * 1.6;
     p.g.visible = !(p.life < 5 && Math.sin(p.phase * 10) > 0); // blink before despawn
     if (p.life <= 0) {
-      scene.remove(p.g);
+      releasePowerup(p);
       powerups.splice(i, 1);
       continue;
     }
@@ -129,11 +152,17 @@ function updatePowerups(dt) {
       );
       if (d < 1.5) {
         applyPowerup(p);
-        scene.remove(p.g);
+        releasePowerup(p);
         powerups.splice(i, 1);
       }
     }
   }
 }
 
-export { PU_TYPES, buildPowerup, updatePowerups };
+export {
+  PU_TYPES,
+  POWERUP_POOL_SIZE,
+  acquirePowerup,
+  releasePowerup,
+  updatePowerups,
+};
