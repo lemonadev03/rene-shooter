@@ -1,4 +1,18 @@
+// @ts-check
+/**
+ * Structural subset of THREE.Vector3 that VectorSpring needs.
+ * @typedef {{ x: number, y: number, z: number, clone: () => SpringVector,
+ * set: (x: number, y: number, z: number) => SpringVector,
+ * copy: (other: SpringVector) => SpringVector }} SpringVector
+ */
+
 // Exact solution of x'' + damping*x' + stiffness*(x-target) = 0 (unit mass).
+/**
+ * @param {number} dt
+ * @param {number} stiffness
+ * @param {number} damping
+ * @returns {[number, number, number, number]}
+ */
 function coefficients(dt, stiffness, damping) {
   const a = damping * 0.5;
   const discriminant = a * a - stiffness;
@@ -32,6 +46,10 @@ export class ScalarSpring {
     this.velocity = 0;
     return this;
   }
+  /**
+   * @param {number} dt
+   * @param {number} [target]
+   */
   update(dt, target = 0) {
     if (dt <= 0) return this.value;
     const [xx, xv, vx, vv] = coefficients(dt, this.stiffness, this.damping);
@@ -44,22 +62,28 @@ export class ScalarSpring {
 
 // Accepts a THREE.Vector3 without importing Three, for direct Node checks too.
 export class VectorSpring {
+  /** @param {SpringVector} value */
   constructor(value, { stiffness = 900, damping = 60 } = {}) {
     this.value = value.clone();
     this.velocity = value.clone().set(0, 0, 0);
     this.stiffness = stiffness;
     this.damping = damping;
   }
+  /** @param {SpringVector} [value] */
   reset(value) {
     if (value) this.value.copy(value);
     else this.value.set(0, 0, 0);
     this.velocity.set(0, 0, 0);
     return this;
   }
+  /**
+   * @param {number} dt
+   * @param {SpringVector} [target]
+   */
   update(dt, target) {
     if (dt <= 0) return this.value;
     const [xx, xv, vx, vv] = coefficients(dt, this.stiffness, this.damping);
-    for (const axis of ["x", "y", "z"]) {
+    for (const axis of /** @type {const} */ (["x", "y", "z"])) {
       const goal = target ? target[axis] : 0;
       const offset = this.value[axis] - goal, velocity = this.velocity[axis];
       this.value[axis] = goal + offset * xx + velocity * xv;
