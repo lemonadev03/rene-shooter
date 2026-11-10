@@ -1,7 +1,18 @@
 // ===== audio (tiny synth) =====
 let AC = null;
-function ac() {
+function createContext() {
   if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  return AC;
+}
+// Creating the context takes about 600 ms on first use. Do it while loading; it stays
+// suspended under autoplay rules until ac() resumes it on the Play click.
+function initAudio() {
+  try {
+    createContext();
+  } catch (e) {}
+}
+function ac() {
+  createContext();
   if (AC.state === "suspended") AC.resume();
   return AC;
 }
@@ -47,4 +58,4 @@ function noiseHit(d = 0.18, vol = 0.12, fc = 2500) {
   } catch (e) {}
 }
 
-export { ac, beep, noiseHit };
+export { ac, initAudio, beep, noiseHit };

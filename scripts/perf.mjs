@@ -101,6 +101,9 @@ async function runOnce(origin) {
       })(),
     }));
     await page.click("#playBtn");
+    await page.evaluate(async () => {
+      window.__perfWaveState = (await import("/src/core/state.js")).waveState;
+    });
     for (let wave = 1; wave <= WAVES; wave++) {
       await page.waitForFunction(
         (expected) => window.__game.state.wave === expected,
@@ -109,8 +112,7 @@ async function runOnce(origin) {
       );
       await page.waitForTimeout(MIN_WAVE_MS);
       await page.waitForFunction(
-        async () =>
-          (await import("/src/core/state.js")).waveState.pending === 0,
+        () => window.__perfWaveState.pending === 0,
         null,
         { timeout: 60000 },
       );

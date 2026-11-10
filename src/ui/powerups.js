@@ -13,19 +13,8 @@ const PU_TYPES = [
   { k: "freeze", emoji: "🧂", name: "SALT STORM", col: 0xf5f5f0, dur: 6 },
 ];
 
-function spawnPowerup() {
-  const t = PU_TYPES[Math.floor(Math.random() * PU_TYPES.length)];
-  let x,
-    z,
-    tries = 0;
-  do {
-    x = rand(-38, 38);
-    z = rand(-32, 10);
-    tries++;
-  } while (Math.hypot(x - player.pos.x, z - player.pos.z) < 7 && tries < 8);
+function buildPowerup(t) {
   const g = new THREE.Group();
-  g.position.set(x, 0, z);
-  scene.add(g);
   const orb = new THREE.Mesh(
     new THREE.IcosahedronGeometry(0.42, 0),
     new THREE.MeshStandardMaterial({
@@ -77,6 +66,21 @@ function spawnPowerup() {
   blob2.rotation.x = -Math.PI / 2;
   blob2.position.y = 0.04;
   g.add(blob2);
+  return { g, orb, ring };
+}
+function spawnPowerup() {
+  const t = PU_TYPES[Math.floor(Math.random() * PU_TYPES.length)];
+  let x,
+    z,
+    tries = 0;
+  do {
+    x = rand(-38, 38);
+    z = rand(-32, 10);
+    tries++;
+  } while (Math.hypot(x - player.pos.x, z - player.pos.z) < 7 && tries < 8);
+  const { g, orb, ring } = buildPowerup(t);
+  g.position.set(x, 0, z);
+  scene.add(g);
   powerups.push({ g, orb, ring, t, life: 26, phase: rand(0, 6) });
   spawnP(g.position.clone().setY(1), 16, t.col, 2, 0.6, 0, 2.2);
 }
@@ -132,4 +136,4 @@ function updatePowerups(dt) {
   }
 }
 
-export { PU_TYPES, updatePowerups };
+export { PU_TYPES, buildPowerup, updatePowerups };

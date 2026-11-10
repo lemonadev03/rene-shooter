@@ -1,6 +1,6 @@
 import { $ } from "./utils.js";
 import * as THREE from "three";
-import { camera } from "./state.js";
+import { scene, camera } from "./state.js";
 import { vmCamera } from "../weapons/viewmodel.js";
 import { configureShadows } from "../world/sky.js";
 import { createPost } from "./post.js";
@@ -51,7 +51,7 @@ export function resize() {
 }
 addEventListener("resize", resize);
 
-export async function initializeRendering() {
+export async function initializeRendering({ stage } = {}) {
   await displayReady;
   setScale(qualityCap());
   const gl = renderer.getContext();
@@ -77,6 +77,15 @@ export async function initializeRendering() {
   pickQuality(deltas);
   configureShadows();
   setScale(qualityCap());
+  // Stage every object that first appears during play, compile its programs, and run
+  // the real passes (shadow, GTAO, post) over it so nothing compiles mid-wave.
+  const unstage = stage?.();
+  await renderer.compileAsync(scene, camera);
+  post.render(0);
+  await completeGPUFrame();
+  post.render(0);
+  await completeGPUFrame();
+  unstage?.();
   // Compile the selected AA/effect variant before allowing play.
   post.render(0);
   await completeGPUFrame();

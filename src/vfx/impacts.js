@@ -38,6 +38,8 @@ const matrix = new THREE.Matrix4();
 const lastPuff = { sand: -Infinity, monster: -Infinity, prop: -Infinity };
 let next = 0, lastMark = -Infinity;
 
+export { marks as scorchMarksMesh };
+
 export function initImpacts() {
   matrix.makeScale(0, 0, 0);
   for (let i = 0; i < MAX; i++) marks.setMatrixAt(i, matrix);

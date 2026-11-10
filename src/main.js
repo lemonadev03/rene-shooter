@@ -19,7 +19,7 @@ import {
   resetInput,
   requestPointerLock,
 } from "./core/input.js";
-import { ac } from "./core/audio.js";
+import { ac, initAudio } from "./core/audio.js";
 import { initSky, updateSky } from "./world/sky.js";
 import { initBeach, updateBeach } from "./world/beach.js";
 import { initOcean, updateOcean } from "./world/ocean.js";
@@ -50,6 +50,7 @@ import { initImpacts, updateImpacts } from "./vfx/impacts.js";
 import { initHitmarker, updateHitmarker } from "./vfx/hitmarker.js";
 import { PU_TYPES, updatePowerups } from "./ui/powerups.js";
 import { updateHud, setWeapon, initShares } from "./ui/hud.js";
+import { stageWarmup, warmDom } from "./warmup.js";
 
 function gameOver(won) {
   state.mode = "end";
@@ -153,7 +154,9 @@ finishAssetRegistration();
 await Promise.all([skyReady, assetsReady]);
 updateTitleCamera(0);
 updateViewmodel(0);
-await initializeRendering();
+initAudio();
+await initializeRendering({ stage: stageWarmup });
+await warmDom();
 markRenderingReady();
 
 let frame = 0;
