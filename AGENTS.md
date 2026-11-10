@@ -35,3 +35,7 @@ Run one browser at a time; every script closes its own. CI runs lint, check and 
 Preserve gameplay, visuals, random-call order, frame update order, and restart semantics in cleanup PRs. A runtime smoke is not a visual or gameplay equivalence proof; compare affected behavior and the lab pages directly.
 
 Tuning lives in `src/enemies/monsters.js` (`MON` and abilities), `src/enemies/waves.js`, `src/player/controller.js`, `src/weapons/projectiles.js`, `src/ui/powerups.js` (`PU_TYPES`), and `src/core/quality.js`. `OCEAN_GRACE` and `PLAYER_R` live in `src/core/state.js`.
+
+## Rendering rules
+
+- Never add or remove lights during play. Three.js puts the scene's light counts into every lit shader's program key, so a change recompiles the whole scene (a 0.1–2 s freeze). Glowing monsters use `makeGlow` anchors in `src/enemies/monsters.js`, which `src/enemies/monsterLights.js` copies into `MAX_MONSTER_LIGHTS` fixed slots each frame. If a wave can hold more glowing monsters at once, raise that constant.
