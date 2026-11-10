@@ -11,7 +11,8 @@ import {
   lifecycle,
 } from "../core/state.js";
 import { resolveCollision } from "../core/collision.js";
-import { PIER, updateBalls } from "../world/beach.js";
+import { updateBalls } from "../world/beach.js";
+import { PIER } from "../world/pier.js";
 import { inSea } from "../world/ocean.js";
 import { spawnP } from "../vfx/particles.js";
 import { beep } from "../core/audio.js";
