@@ -279,4 +279,16 @@ export function resetProjectiles() {
   fireballs.forEach((b) => _freeMesh(_fPool, b.m));
   fireballs.length = 0;
 }
-export { shoot, spitFire };
+// Hands the loading step one pooled mesh of each kind so their materials compile
+// before the first shot; returnWarmupMeshes puts them back in the pools.
+function takeWarmupMeshes() {
+  return [
+    _getMesh(_fPool, fireGeo, fireMat),
+    _getMesh(_sPool, spongeGeo, spongeMat),
+  ];
+}
+function returnWarmupMeshes([fire, sponge]) {
+  _freeMesh(_fPool, fire);
+  _freeMesh(_sPool, sponge);
+}
+export { shoot, spitFire, takeWarmupMeshes, returnWarmupMeshes };

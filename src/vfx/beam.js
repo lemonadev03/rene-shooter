@@ -63,6 +63,8 @@ function drawBeam() {
   beam.visible = fade > 0;
 }
 
+export { beam as heatBeamMesh };
+
 export function initBeam() {
   // Keep the light in the scene even when idle: light-count changes recompile materials.
   scene.add(beam, muzzleLight);
