@@ -2,43 +2,34 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import {
   clamp,
-  lerp,
-  smoothstep01,
   rand,
   V3,
-  canvasTex,
   mat,
   box,
   cyl,
   sph,
 } from "../core/utils.js";
 import { scene, balls, player, PLAYER_R } from "../core/state.js";
-import { shoreZ, seaZ, bedY } from "./ocean.js";
+import { seaZ, bedY } from "./ocean.js";
 import {
   addCircle,
   addSeg,
   addBox,
   resolveCollision,
 } from "../core/collision.js";
+import { createBeachMaterials, updateSandQuality } from "./beach-materials.js";
+import { initScatter, updateScatterQuality } from "./scatter.js";
 export const PIER = { x: 38, z: 26, len: 25, w: 3.6, bottom: 2.25 };
 let bonfireFlames = [];
 let sailboats = [];
 export function initBeach() {
-  const sandTex = canvasTex(512, 512, (g, w, h) => {
-    g.fillStyle = "#f0d488";
-    g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 9000; i++) {
-      g.fillStyle = ["#e8c975", "#f7e3a0", "#d9b95f", "#fff3c4"][i % 4];
-      g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
-    }
-  });
-  sandTex.wrapS = sandTex.wrapT = THREE.RepeatWrapping;
-  sandTex.repeat.set(20, 9);
+  const surfaces = createBeachMaterials();
+  initScatter();
   // shoreline: gently wobbly, and the seabed is a real slope that dips under the water. Mirrored in the water shader.
   // dry sand (flat) up to z=9, then the sloped shore/seabed mesh takes over
   const sand = new THREE.Mesh(
-    new THREE.PlaneGeometry(340, 70),
-    new THREE.MeshStandardMaterial({ map: sandTex, roughness: 0.95 }),
+    new THREE.PlaneGeometry(340, 70, 170, 1),
+    surfaces.sand,
   );
   sand.rotation.x = -Math.PI / 2;
   sand.position.set(0, 0, -26);
@@ -49,131 +40,31 @@ export function initBeach() {
       const geo = new THREE.PlaneGeometry(340, Z1 - Z0, NX, NZ);
       geo.rotateX(-Math.PI / 2);
       geo.translate(0, 0, (Z0 + Z1) / 2);
-      const pa = geo.attributes.position,
-        col = new Float32Array(pa.count * 3);
-      for (let i = 0; i < pa.count; i++) {
-        const x = pa.getX(i),
-          z = pa.getZ(i),
-          d = z - shoreZ(x);
-        pa.setY(i, bedY(x, z));
-        const wet = smoothstep01((d + 2.4) / 2.0),
-          deep = smoothstep01(d / 9); // dry -> wet sand at the waterline -> slightly cooler seabed
-        col[i * 3] = lerp(1, 0.8, wet) * lerp(1, 0.78, deep);
-        col[i * 3 + 1] = lerp(1, 0.74, wet) * lerp(1, 0.9, deep);
-        col[i * 3 + 2] = lerp(1, 0.62, wet) * lerp(1, 0.95, deep);
-      }
-      if (tinted) geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      const pa = geo.attributes.position;
+      for (let i = 0; i < pa.count; i++) pa.setY(i, bedY(pa.getX(i), pa.getZ(i)));
       geo.computeVertexNormals();
       const m = new THREE.Mesh(geo, material);
       m.receiveShadow = tinted;
       scene.add(m);
       return m;
     };
-    const shoreTex = sandTex.clone();
-    shoreTex.needsUpdate = true;
-    shoreTex.repeat.set(20, 2.6);
+    bedMesh(9, 26, 170, 34, surfaces.sand, true);
     bedMesh(
-      9,
-      34,
-      85,
-      25,
-      new THREE.MeshStandardMaterial({
-        map: shoreTex,
-        vertexColors: true,
-        roughness: 0.9,
-      }),
-      true,
-    ); // the beach slope and shallows
-    bedMesh(
-      34,
+      26,
       122,
       40,
       22,
       new THREE.MeshBasicMaterial({ color: 0x8fae9c }),
       false,
     );
-  } // deep seabed: always under >1.4 m of water, so it gets a cheap flat material
-  // sand detail: tonal patches, shells, starfish
-  {
-    const patchCols = [0xe6c87a, 0xf5df9e, 0xdec084];
-    for (let i = 0; i < 26; i++) {
-      const p = new THREE.Mesh(
-        new THREE.CircleGeometry(rand(1.2, 3.4), 18),
-        new THREE.MeshStandardMaterial({
-          color: patchCols[i % 3],
-          roughness: 1,
-          transparent: true,
-          opacity: 0.5,
-        }),
-      );
-      p.rotation.x = -Math.PI / 2;
-      p.rotation.z = rand(0, 3);
-      p.scale.y = rand(0.5, 0.8);
-      p.position.set(rand(-48, 48), 0.008, rand(-36, 11));
-      p.receiveShadow = true;
-      scene.add(p);
-    }
-    const shellCols = [0xfff1e6, 0xffb4a2, 0xf9c6d3, 0xffffff];
-    for (let i = 0; i < 34; i++) {
-      const s = sph(
-        rand(0.09, 0.17),
-        mat(shellCols[i % 4], 0.5),
-        rand(-48, 48),
-        0.05,
-        rand(-34, 12),
-        10,
-        8,
-      );
-      s.scale.y = 0.45;
-      s.castShadow = false;
-      scene.add(s);
-    }
-    for (let i = 0; i < 7; i++) {
-      const st = new THREE.Group();
-      st.position.set(rand(-40, 40), 0.06, rand(-30, 12));
-      st.rotation.y = rand(0, 3);
-      for (let a = 0; a < 5; a++) {
-        const arm = new THREE.Mesh(
-          new THREE.ConeGeometry(0.09, 0.42, 6),
-          mat(0xff8c42, 0.7),
-        );
-        arm.rotation.z = Math.PI / 2;
-        arm.rotation.y = (-a / 5) * Math.PI * 2;
-        arm.translateX(0.18);
-        arm.scale.y = 0.5;
-        st.add(arm);
-      }
-      scene.add(st);
-    }
-  }
-  // dune mounds + grass tufts along the back (north)
+  } // Beyond z=26, nearly opaque deep water hides the bed's surface detail.
+  // The same world-space sand covers low dunes; scanned plants live in scatter.js.
   for (let i = 0; i < 9; i++) {
-    const d = sph(
-      rand(4, 8),
-      mat(0xeccf7d, 0.95),
-      -55 + i * 13 + rand(-2, 2),
-      -1.5,
-      -46 + rand(-2, 2),
-    );
+    const d = sph(rand(4, 8), surfaces.sand, -55 + i * 13 + rand(-2, 2), -1.5, -46 + rand(-2, 2));
     d.scale.y = 0.38;
     d.castShadow = false;
+    d.receiveShadow = true;
     scene.add(d);
-  }
-  {
-    const gm = mat(0x4c9a4c, 0.85);
-    for (let i = 0; i < 46; i++) {
-      const x = rand(-58, 58),
-        z = rand(-50, -33);
-      for (let j = 0; j < 3; j++) {
-        const c = new THREE.Mesh(
-          new THREE.ConeGeometry(0.07, rand(0.5, 0.95), 5),
-          gm,
-        );
-        c.position.set(x + rand(-0.25, 0.25), 0.3, z + rand(-0.25, 0.25));
-        c.rotation.set(rand(-0.3, 0.3), 0, rand(-0.3, 0.3));
-        scene.add(c);
-      }
-    }
   }
   // geyser vents on the shore — where the water monsters bubble up from
   bonfireFlames = []; // animated geyser jets
@@ -240,24 +131,12 @@ export function initBeach() {
   {
     const g = new THREE.Group();
     g.position.set(PIER.x, 0, PIER.z);
-    const wm = mat(0x8a6a40, 0.9);
-    const plankTex = canvasTex(64, 32, (c, w, h) => {
-      c.fillStyle = "#b08954";
-      c.fillRect(0, 0, w, h);
-      for (let i = 0; i < 260; i++) {
-        c.fillStyle = ["#a37d49", "#bb955d", "#9d7842"][i % 3];
-        c.fillRect(Math.random() * w, Math.random() * (h - 3), rand(6, 22), 1);
-      }
-      c.fillStyle = "#5e4527";
-      c.fillRect(0, h - 3, w, 3);
-    });
-    plankTex.wrapS = plankTex.wrapT = THREE.RepeatWrapping;
-    plankTex.repeat.set(1, PIER.len / 0.5);
+    const wm = surfaces.wood;
     const deck = box(
       PIER.w,
       0.2,
       PIER.len,
-      new THREE.MeshStandardMaterial({ map: plankTex, roughness: 0.85 }),
+      surfaces.deck,
       0,
       2.52,
       0,
@@ -324,19 +203,6 @@ export function initBeach() {
   sailboat(-55, 72, 0xff4d6d, 0.55);
   sailboat(30, 88, 0xffd23a, -0.4);
   sailboat(75, 64, 0xffffff, 0.33);
-  // distant islands
-  [
-    [-75, 95],
-    [55, 115],
-    [95, 80],
-  ].forEach(([x, z]) => {
-    const isl = new THREE.Mesh(
-      new THREE.ConeGeometry(rand(9, 15), rand(4, 7), 7),
-      mat(0x3f9e5f, 0.9),
-    );
-    isl.position.set(x, 0, z);
-    scene.add(isl);
-  });
   // palm tree
   const trunkMat = mat(0x8a6242, 0.9),
     leafMat = mat(0x21a356, 0.8, 0, { side: THREE.DoubleSide }),
@@ -513,7 +379,7 @@ export function initBeach() {
     const g = new THREE.Group();
     g.position.set(17, 0, -18);
     g.rotation.y = -0.4;
-    const wm = mat(0xf4f4f4, 0.7),
+    const wm = surfaces.tower,
       rm = mat(0xe63946, 0.6);
     [
       [-1, -1],
@@ -542,24 +408,7 @@ export function initBeach() {
       addCircle(bp.x, bp.z, 0.28, 3);
     }
   }
-  // rocks + crates
-  [
-    [-34, 10],
-    [36, 12],
-    [-6, -24],
-    [8, -8],
-  ].forEach(([x, z]) => {
-    const rr = rand(0.7, 1.3),
-      r = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(rr),
-        mat(0x8d99ae, 0.9),
-      );
-    r.position.set(x, 0.5, z);
-    r.castShadow = true;
-    r.receiveShadow = true;
-    scene.add(r);
-    addCircle(x, z, rr * 0.88, 0.5 + rr);
-  });
+  // crates (rock scans and their footprints are registered in scatter.js)
   [
     [4, -20],
     [5.2, -20],
@@ -571,6 +420,8 @@ export function initBeach() {
   });
 }
 export function updateBeach(dt, t) {
+  updateSandQuality();
+  updateScatterQuality();
   bonfireFlames.forEach((o) => {
     const sc = 1 + Math.sin(t * 11 + o.ph) * 0.22;
     o.f.scale.set(sc, sc * (1 + Math.sin(t * 13 + o.ph) * 0.18), sc);
