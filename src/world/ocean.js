@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { scene } from "../core/state.js";
+import { sunDirection } from "./sky.js";
 export const shoreZ = (x) =>
   15.1 +
   Math.sin(x * 0.11) * 0.7 +
@@ -23,7 +24,7 @@ export function initOcean() {
     t.needsUpdate = true;
     return t;
   })();
-  const _skyCol = (r, g, b) =>
+  const linearColor = (r, g, b) =>
     new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
   const SEA_GLSL = `
 float shoreZ(float x){return 15.1+sin(x*.11)*.7+sin(x*.037+1.7)*1.1+sin(x*.27+.5)*.25;}
@@ -40,13 +41,14 @@ vec3 wv(vec2 p,vec2 dir,float k,float amp,float sp,float t){float ph=k*dot(p,dir
       {
         uTime: { value: 0 },
         uNoise: { value: _noiseTex },
-        uShallow: { value: _skyCol(0.26, 0.86, 0.8) },
-        uMid: { value: _skyCol(0.08, 0.66, 0.82) },
-        uDeep: { value: _skyCol(0.03, 0.3, 0.62) },
-        uSkyH: { value: _skyCol(0.98, 0.93, 0.78) },
-        uSkyZ: { value: _skyCol(0.25, 0.72, 0.95) },
-        uFoam: { value: _skyCol(1, 1, 1) },
-        uSunCol: { value: _skyCol(1, 0.95, 0.8) },
+        uShallow: { value: linearColor(0.24, 0.73, 0.67) },
+        uMid: { value: linearColor(0.04, 0.52, 0.62) },
+        uDeep: { value: linearColor(0.015, 0.22, 0.4) },
+        uSky: { value: null },
+        uSkyRotation: { value: new THREE.Matrix3() },
+        uSkyIntensity: { value: 0.9 },
+        uFoam: { value: linearColor(1, 1, 1) },
+        uSunCol: { value: linearColor(1, 0.95, 0.8) },
         uSunDir: { value: new THREE.Vector3(-28, 42, 22).normalize() },
       },
     ]),
@@ -66,12 +68,13 @@ vec3 wv(vec2 p,vec2 dir,float k,float amp,float sp,float t){float ph=k*dot(p,dir
       #include <fog_vertex>
     }`,
     fragmentShader: `
-    uniform float uTime; uniform sampler2D uNoise; uniform vec3 uShallow,uMid,uDeep,uSkyH,uSkyZ,uFoam,uSunCol,uSunDir; varying vec3 vWorld; varying vec3 vN; varying float vD;
+    uniform float uTime; uniform sampler2D uNoise; uniform samplerCube uSky; uniform mat3 uSkyRotation; uniform float uSkyIntensity; uniform vec3 uShallow,uMid,uDeep,uFoam,uSunCol,uSunDir; varying vec3 vWorld; varying vec3 vN; varying float vD;
     #include <fog_pars_fragment>
     ${SEA_GLSL}
     vec4 nz(vec2 p){return texture2D(uNoise,p*(1./128.));}
     void main(){
       vec2 p=vWorld.xz; float d=vD;
+      // bedY expressed with the already interpolated shore distance.
       float depth=vWorld.y-max(-1.45,-.09*qr(d+1.2));
       if(depth<=0.) discard;
       vec3 N=normalize(vN); // swell normal from the vertex shader; fine ripples come from the noise texture below
@@ -81,12 +84,15 @@ vec3 wv(vec2 p,vec2 dir,float k,float amp,float sp,float t){float ph=k*dot(p,dir
       float ndv=clamp(dot(N,V),0.,1.);
       // body colour: pale turquoise in the shallows, deeper blue with depth and distance from shore
       vec3 body=mix(uShallow,uMid,smoothstep(.05,1.2,depth));
-      body=mix(body,uDeep,smoothstep(3.,34.,d));
+      body=mix(body,uDeep,smoothstep(.45,1.42,depth));
       body*=.82+.28*max(dot(N,uSunDir),0.);
       // fresnel sky reflection
       vec3 R=reflect(-V,N);
-      vec3 sky=mix(uSkyH,uSkyZ,smoothstep(-.05,.55,R.y));
-      float fres=clamp(.03+.62*pow(1.-ndv,4.),0.,.62);
+      // r187 PMREM is a native cubemap: sample the same HDR radiance used by
+      // the Standard materials, with Schlick's water/air reflectance below.
+      vec3 skyDir=normalize(uSkyRotation*R);
+      vec3 sky=textureLod(uSky,skyDir,0.).rgb*uSkyIntensity;
+      float fres=.0204+.9796*pow(1.-ndv,5.);
       vec3 col=mix(body,sky,fres);
       float alpha=mix(.22,.97,smoothstep(0.,1.0,depth));
       alpha=mix(alpha,1.,fres*.45);
@@ -118,9 +124,18 @@ vec3 wv(vec2 p,vec2 dir,float k,float amp,float sp,float t){float ph=k*dot(p,dir
     })(),
     oceanMat,
   );
+  ocean.onBeforeRender = () => updateOcean(oceanMat.uniforms.uTime.value);
   ocean.frustumCulled = false;
   scene.add(ocean);
 }
+const skyRotation = new THREE.Matrix4();
 export function updateOcean(t) {
   oceanMat.uniforms.uTime.value = t;
+  if (scene.environment?.isTexture && oceanMat.uniforms.uSky.value !== scene.environment) {
+    oceanMat.uniforms.uSky.value = scene.environment;
+    skyRotation.makeRotationFromEuler(scene.environmentRotation).invert();
+    oceanMat.uniforms.uSkyRotation.value.setFromMatrix4(skyRotation);
+    oceanMat.uniforms.uSkyIntensity.value = scene.backgroundIntensity;
+    oceanMat.uniforms.uSunDir.value.copy(sunDirection);
+  }
 }
