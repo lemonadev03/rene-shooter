@@ -50,6 +50,8 @@
 .tag{font-weight:700;max-width:560px;text-shadow:0 2px 8px #0009;line-height:1.5}
 #playBtn,#againBtn{pointer-events:auto;margin-top:22px;background:#ffe23a;color:#123;padding:16px 30px;border:3px solid #fff;border-bottom:7px solid #eab308;border-radius:14px;font-size:19px;font-weight:1000;cursor:pointer;transform:skew(-6deg)}
 #playBtn:hover,#againBtn:hover{transform:skew(-6deg) scale(1.04)}
+#playBtn:disabled{cursor:wait;opacity:.7;transform:skew(-6deg)}
+#loadingProgress{min-height:18px;margin-top:8px;font-size:12px;font-weight:700;text-shadow:0 1px 4px #000}
 .controls{display:grid;grid-template-columns:repeat(4,auto);gap:8px 16px;margin-top:20px;font-size:12px;font-weight:700;text-shadow:0 1px 4px #000}
 kbd{background:#fff;color:#123;padding:2px 6px;border-radius:5px;font-family:inherit;box-shadow:0 2px 0 #999}
 .foot{margin-top:14px;font-size:12px;opacity:.85;font-weight:700}
