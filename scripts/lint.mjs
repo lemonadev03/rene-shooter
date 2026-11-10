@@ -37,10 +37,7 @@ console.log(
 );
 // Reject additional debt while allowing the untouched baseline to pass.
 const warningBudget = {
-  "no-duplicate-imports": 4,
-  "no-unused-vars": 3,
-  "no-useless-assignment": 2,
-  "prefer-const": 5,
+  "no-duplicate-imports": 1,
 };
 const addedDebt = Object.entries(counts).some(
   ([rule, count]) => count > (warningBudget[rule] || 0),

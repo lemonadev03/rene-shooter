@@ -2,11 +2,6 @@ import * as THREE from "three";
 // ===== helpers =====
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const lerp = (a, b, t) => a + (b - a) * t;
-const smoothstep01 = (t) => {
-  t = Math.max(0, Math.min(1, t));
-  return t * t * (3 - 2 * t);
-};
 const rand = (a, b) => a + Math.random() * (b - a);
 const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 function canvasTex(w, h, fn) {
@@ -72,8 +67,6 @@ function sph(r, m, x = 0, y = 0, z = 0, w = 18, h = 14) {
 export {
   $,
   clamp,
-  lerp,
-  smoothstep01,
   rand,
   V3,
   canvasTex,

@@ -176,14 +176,14 @@ export function buildSolarSoakerHD({ textureBase = new URL('../../assets/weapons
     return geo;
   }
   function profile(mat,outline,depth,x=0,holes=[],bevel=.0015,tile=null) {
-    let g=new THREE.ExtrudeGeometry(makeShape(outline,holes),{depth,bevelEnabled:bevel>0,bevelSegments:2,steps:1,bevelThickness:bevel,bevelSize:bevel,curveSegments:8});
+    const g=new THREE.ExtrudeGeometry(makeShape(outline,holes),{depth,bevelEnabled:bevel>0,bevelSegments:2,steps:1,bevelThickness:bevel,bevelSize:bevel,curveSegments:8});
     if(mat===paint)remapTile(g,tile||paintTile(outline,holes));
     else {const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*5,uv.getY(i)*5);}
     g.translate(0,0,-depth/2);return add(mat,g,[x,0,0],[0,Math.PI/2,0]);
   }
   const boxTile=paintTile([[0,0],[.12,0],[.12,.14],[0,.14]]);
   function box(mat,w,h,d,pos,rot=[0,0,0],radius=.002,tint=0xffffff) {
-    let g=new RoundedBoxGeometry(w,h,d,radius>=.003?2:1,Math.min(radius,w/3,h/3,d/3));
+    const g=new RoundedBoxGeometry(w,h,d,radius>=.003?2:1,Math.min(radius,w/3,h/3,d/3));
     if(mat===paint)remapTile(g,boxTile,false);
     return add(mat,g,pos,rot,tint);
   }
@@ -211,7 +211,7 @@ export function buildSolarSoakerHD({ textureBase = new URL('../../assets/weapons
   // Recessed cooling vanes remain visible behind the machined front port.
   for(let i=0;i<10;i++) for(const side of [-1,1]) box(steel,.005,.014,.002,[side*.052,.16,-.321+i*.0065],[.2,0,0],.0005,0x65615a);
   const rearPanel=[[-.124,.117],[-.124,.216],[.191,.216],[.178,.133],[.071,.133],[.053,.105],[-.039,.105],[-.053,.087],[-.089,.092]];
-  const slots=[];for(let i=0;i<5;i++){let z=-.093+i*.020;slots.push([[z,.147],[z+.011,.147],[z+.023,.172],[z+.012,.172]]);}
+  const slots=[];for(let i=0;i<5;i++){const z=-.093+i*.020;slots.push([[z,.147],[z+.011,.147],[z+.023,.172],[z+.012,.172]]);}
   const rearTile=paintTile(rearPanel,slots);
   for(const side of [-1,1])profile(paint,rearPanel,.007,side*.056,slots,.0012,rearTile);
   // Rear stock flares down toward the padded shoulder contact, as in the side reference.
@@ -277,7 +277,7 @@ export function buildSolarSoakerHD({ textureBase = new URL('../../assets/weapons
   const cageWindow=[[-.589,-.024],[-.465,-.024],[-.455,-.014],[-.455,.014],[-.465,.024],[-.589,.024],[-.599,.014],[-.599,-.014]];
   for(let i=0;i<6;i++) {
     const angle=i*Math.PI/3;
-    let cg=new THREE.ExtrudeGeometry(makeShape(cageOutline,[densify(cageWindow)]),{depth:.006,bevelEnabled:true,bevelSegments:2,bevelSize:.0015,bevelThickness:.001,steps:1});
+    const cg=new THREE.ExtrudeGeometry(makeShape(cageOutline,[densify(cageWindow)]),{depth:.006,bevelEnabled:true,bevelSegments:2,bevelSize:.0015,bevelThickness:.001,steps:1});
     cg.translate(0,0,-.003);cg.rotateY(Math.PI/2);
     const cp=cg.attributes.position,cn=cg.attributes.normal;
     for(let j=0;j<cp.count;j++){

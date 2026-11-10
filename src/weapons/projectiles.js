@@ -1,6 +1,5 @@
-import { $ } from "../core/utils.js";
+import { $, rand } from "../core/utils.js";
 import * as THREE from "three";
-import { rand } from "../core/utils.js";
 import {
   scene,
   camera,
