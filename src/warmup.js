@@ -79,16 +79,20 @@ export async function warmDom() {
     const className = el.className;
     const cssText = el.style.cssText;
     const text = el.children.length ? null : el.textContent;
+    const inert = el.inert;
     el.classList.remove("hidden");
     apply?.(el);
     restores.push(() => {
       el.className = className;
       el.style.cssText = cssText;
+      el.inert = inert;
       if (text !== null) el.textContent = text;
     });
   };
+  // Inert, so the faint end screen's button can't take a click over the title.
   const faint = (el) => {
     el.style.opacity = "0.01";
+    el.inert = true;
   };
   reveal("hud", faint);
   reveal("end", faint);
