@@ -11,6 +11,7 @@
     "check": "node scripts/check.mjs",
     "smoke": "node scripts/smoke.mjs",
     "perf": "node scripts/perf.mjs",
+    "e2e": "node scripts/e2e.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test \"test/*.test.mjs\""
   },
