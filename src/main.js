@@ -61,6 +61,14 @@ import {
   NEW_RUN_POWERUP_TIMER,
 } from "./config/session.js";
 
+// Also called at the end of the frame that ended the run, so kills scored
+// after the death (a Gusher blast, other monsters in the same update) count.
+function renderEndStats() {
+  $("stScore").textContent = state.score;
+  $("stWave").textContent = state.wave;
+  $("stKills").textContent = state.kills;
+}
+
 function gameOver(won) {
   state.mode = "end";
   resetWaves();
@@ -70,9 +78,7 @@ function gameOver(won) {
   $("endSub").textContent = won
     ? "Every water monster evaporated. Ateneo #2 does it again."
     : "The water monsters got you. Towel off and run it back.";
-  $("stScore").textContent = state.score;
-  $("stWave").textContent = state.wave;
-  $("stKills").textContent = state.kills;
+  renderEndStats();
   $("end").classList.remove("hidden");
   $("hud").classList.add("hidden");
 }
@@ -205,6 +211,7 @@ function animate(now) {
       state.comboT -= dt;
       if (state.comboT <= 0) state.combo = 0;
     }
+    if (state.mode === "end") renderEndStats();
     updateHud(frame, alive, PU_TYPES);
     updateMonsterLights();
     renderFrame(dt);

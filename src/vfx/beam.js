@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { scene, camera, state, input } from "../core/state.js";
 import { on } from "../core/events.js";
 import { getMuzzleWorldPosition } from "../weapons/viewmodel.js";
+import { HEAT_RAY_COST, HEAT_RAY_COST_RAPID } from "../config/weapons.js";
 
 const start = new THREE.Vector3(), end = new THREE.Vector3();
 const along = new THREE.Vector3(), side = new THREE.Vector3(), eye = new THREE.Vector3();
@@ -81,7 +82,9 @@ export function setHeatBeamTarget(point) {
 export function updateBeam(dt) {
   material.uniforms.time.value = state.time;
   pulse = Math.max(0, pulse - dt * 22);
-  const firing = state.mode === "play" && state.weapon === 1 && state.water > 0 && (input.mouseDown || input.touchFire);
+  // Same charge test as shoot(): below one shot's cost the gun is waiting to recharge, so the beam fades.
+  const cost = state.pu.rapid > 0 ? HEAT_RAY_COST_RAPID : HEAT_RAY_COST;
+  const firing = state.mode === "play" && state.weapon === 1 && state.water >= cost && (input.mouseDown || input.touchFire);
   if (!firing) {
     fade = Math.max(0, fade - dt);
     muzzleLight.intensity = 0;
