@@ -6,7 +6,9 @@ const tiers = {
   ultra: { pixelRatioCap: 1.5, shadowSize: 4096, gtao: true, bloomScale: 0.75 },
 };
 /** @type {keyof typeof tiers} */
-const requested = /** @type {any} */ (new URLSearchParams(location.search).get("q"));
+const requested = /** @type {any} */ (
+  new URLSearchParams(location.search).get("q")
+);
 const overridden = Object.hasOwn(tiers, requested);
 /**
  * Live settings: the active tier's values plus the measured frame budget.
@@ -23,8 +25,12 @@ export const quality = {
   ...tiers[overridden ? requested : "high"],
 };
 /** @param {keyof typeof tiers} tier */
-export function setQuality(tier) { Object.assign(quality, { tier }, tiers[tier]); }
-export function qualityCap() { return Math.min(devicePixelRatio || 1, quality.pixelRatioCap); }
+export function setQuality(tier) {
+  Object.assign(quality, { tier }, tiers[tier]);
+}
+export function qualityCap() {
+  return Math.min(devicePixelRatio || 1, quality.pixelRatioCap);
+}
 
 /** @param {() => void} [paint] */
 export async function measureDisplayInterval(paint) {
@@ -32,17 +38,19 @@ export async function measureDisplayInterval(paint) {
   const deltas = [];
   /** @type {number | undefined} */
   let previous;
-  await /** @type {Promise<void>} */ (new Promise((resolve) => {
-    /** @param {number} now */
-    function tick(now) {
-      if (previous !== undefined) deltas.push(now - previous);
-      previous = now;
-      paint?.();
-      if (deltas.length < 32) requestAnimationFrame(tick);
-      else resolve();
-    }
-    requestAnimationFrame(tick);
-  }));
+  await /** @type {Promise<void>} */ (
+    new Promise((resolve) => {
+      /** @param {number} now */
+      function tick(now) {
+        if (previous !== undefined) deltas.push(now - previous);
+        previous = now;
+        paint?.();
+        if (deltas.length < 32) requestAnimationFrame(tick);
+        else resolve();
+      }
+      requestAnimationFrame(tick);
+    })
+  );
   deltas.sort((a, b) => a - b);
   quality.measuredIntervalMs = deltas[16];
   // Unthrottled/headless rAF can run faster than a physical display. Budget 120 Hz there.
@@ -60,13 +68,23 @@ export function pickQuality(frameDeltas) {
       // Unthrottled (no vsync): rAF runs ahead of the GPU, so deltas under-report.
       // Auto never picks ultra (ask with ?q=ultra); high plus dynamic resolution holds 120 fps.
       const budget = 1000 / 120;
-      setQuality(median < budget * 0.9 ? "high"
-        : median < budget * 1.6 ? "medium" : "low");
+      setQuality(
+        median < budget * 0.9
+          ? "high"
+          : median < budget * 1.6
+            ? "medium"
+            : "low",
+      );
     } else {
       // Vsync caps deltas at the display interval, so only missed frames show up.
       // Stay on high while it keeps pace; dynamic resolution absorbs small shortfalls.
-      setQuality(median <= interval * 1.25 ? "high"
-        : median <= interval * 2.2 ? "medium" : "low");
+      setQuality(
+        median <= interval * 1.25
+          ? "high"
+          : median <= interval * 2.2
+            ? "medium"
+            : "low",
+      );
     }
   }
   quality.warmingUp = false;

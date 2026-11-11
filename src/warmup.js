@@ -6,10 +6,7 @@ import {
   acquireMonster,
   releaseMonster,
 } from "./enemies/monsters.js";
-import {
-  takeWarmupMeshes,
-  returnWarmupMeshes,
-} from "./weapons/projectiles.js";
+import { takeWarmupMeshes, returnWarmupMeshes } from "./weapons/projectiles.js";
 import {
   PU_TYPES,
   POWERUP_POOL_SIZE,
@@ -194,7 +191,8 @@ export async function warmDom() {
   // Paint exact end-screen content, including its final-size emoji/text runs.
   await settleDom(deadline);
   $("endTitle").textContent = "BEACH SAVED! 🏆";
-  $("endSub").textContent = "Every water monster evaporated. Ateneo #2 does it again.";
+  $("endSub").textContent =
+    "Every water monster evaporated. Ateneo #2 does it again.";
   await settleDom(deadline);
   feedItem.remove();
   for (const restore of restores) restore();

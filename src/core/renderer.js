@@ -4,9 +4,18 @@ import { scene, camera, state } from "./state.js";
 import { vmCamera } from "../weapons/viewmodel.js";
 import { configureShadows } from "../world/sky.js";
 import { createPost } from "./post.js";
-import { quality, qualityCap, measureDisplayInterval, pickQuality } from "./quality.js";
+import {
+  quality,
+  qualityCap,
+  measureDisplayInterval,
+  pickQuality,
+} from "./quality.js";
 
-export const renderer = new THREE.WebGLRenderer({ canvas: $("c"), antialias: false, powerPreference: "high-performance" });
+export const renderer = new THREE.WebGLRenderer({
+  canvas: $("c"),
+  antialias: false,
+  powerPreference: "high-performance",
+});
 renderer.setPixelRatio(1);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -29,10 +38,14 @@ let debugTime = 0;
 let debugFrames = 0;
 let lastFrameTime;
 let renderCostMs = 0;
-const overlay = new URLSearchParams(location.search).get("debug") === "1" ? document.createElement("div") : null;
+const overlay =
+  new URLSearchParams(location.search).get("debug") === "1"
+    ? document.createElement("div")
+    : null;
 if (overlay) {
   overlay.id = "debug";
-  overlay.style.cssText = "position:fixed;top:6px;left:6px;z-index:30;white-space:pre;pointer-events:none;font:11px monospace;color:#fff;background:#000a;padding:5px";
+  overlay.style.cssText =
+    "position:fixed;top:6px;left:6px;z-index:30;white-space:pre;pointer-events:none;font:11px monospace;color:#fff;background:#000a;padding:5px";
   document.body.append(overlay);
 }
 
@@ -61,7 +74,10 @@ export async function initializeRendering({ stage } = {}) {
     const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     gl.flush();
     const deadline = performance.now() + 200;
-    while (gl.clientWaitSync(fence, 0, 0) === gl.TIMEOUT_EXPIRED && performance.now() < deadline) {
+    while (
+      gl.clientWaitSync(fence, 0, 0) === gl.TIMEOUT_EXPIRED &&
+      performance.now() < deadline
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
     gl.deleteSync(fence);
@@ -108,7 +124,8 @@ function adaptResolution(frameMs) {
   }
   samples.push(frameMs);
   sampleTime += frameMs;
-  while (samples.length > 1 && sampleTime - samples[0] >= 500) sampleTime -= samples.shift();
+  while (samples.length > 1 && sampleTime - samples[0] >= 500)
+    sampleTime -= samples.shift();
   if (sampleTime < 500) return;
   const average = sampleTime / samples.length;
   if (average > quality.targetFrameMs * 1.15 && scale > 0.5) {
@@ -119,10 +136,13 @@ function adaptResolution(frameMs) {
     setScale(scale * 0.9);
     samples = [];
     sampleTime = comfortableTime = overloadedTime = 0;
-  } else if (average < quality.targetFrameMs * 0.95 ||
+  } else if (
+    average < quality.targetFrameMs * 0.95 ||
     // At vsync, frame intervals cannot fall below the display interval. Submission
     // headroom plus stable pacing lets resolution recover on those displays too.
-    (average <= quality.targetFrameMs * 1.03 && renderCostMs < quality.targetFrameMs * 0.5)) {
+    (average <= quality.targetFrameMs * 1.03 &&
+      renderCostMs < quality.targetFrameMs * 0.5)
+  ) {
     overloadedTime = 0;
     comfortableTime += frameMs;
     if (comfortableTime >= 3000 && scale < qualityCap()) {
@@ -146,7 +166,8 @@ export function renderFrame(dt) {
   debugFrames++;
   if (overlay && debugTime >= 250) {
     const average = debugTime / debugFrames;
-    overlay.textContent = `tier ${quality.tier}  render scale ${scale.toFixed(2)}×\n` +
+    overlay.textContent =
+      `tier ${quality.tier}  render scale ${scale.toFixed(2)}×\n` +
       `fps ${(1000 / average).toFixed(0)}  frame ${average.toFixed(2)} ms\n` +
       `draw calls ${renderer.info.render.calls}  triangles ${renderer.info.render.triangles}`;
     debugTime = debugFrames = 0;

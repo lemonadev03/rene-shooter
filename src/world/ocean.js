@@ -131,7 +131,10 @@ vec3 wv(vec2 p,vec2 dir,float k,float amp,float sp,float t){float ph=k*dot(p,dir
 const skyRotation = new THREE.Matrix4();
 export function updateOcean(t) {
   oceanMat.uniforms.uTime.value = t;
-  if (scene.environment?.isTexture && oceanMat.uniforms.uSky.value !== scene.environment) {
+  if (
+    scene.environment?.isTexture &&
+    oceanMat.uniforms.uSky.value !== scene.environment
+  ) {
     oceanMat.uniforms.uSky.value = scene.environment;
     skyRotation.makeRotationFromEuler(scene.environmentRotation).invert();
     oceanMat.uniforms.uSkyRotation.value.setFromMatrix4(skyRotation);

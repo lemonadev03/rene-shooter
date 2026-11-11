@@ -122,10 +122,16 @@ const links = [...html.matchAll(/<link\b([^>]*)>/gi)].map((match) => ({
 // loadHDR, loadGLTF and loadTexture fetch their files. WebKit downloads a fetch preload twice, so
 // those preloads are listed in a JSON block that an inline script injects outside WebKit.
 const fetchPreloads = JSON.parse(
-  html.match(/<script id="fetch-preloads" type="application\/json">([\s\S]*?)<\/script>/)[1],
+  html.match(
+    /<script id="fetch-preloads" type="application\/json">([\s\S]*?)<\/script>/,
+  )[1],
 );
 for (const link of links.filter((item) => item.rel === "preload"))
-  assert.notEqual(link.as, "fetch", `index.html: move ${link.href} into the fetch-preloads JSON block`);
+  assert.notEqual(
+    link.as,
+    "fetch",
+    `index.html: move ${link.href} into the fetch-preloads JSON block`,
+  );
 const sourceFor = new Map();
 async function source(file) {
   if (!sourceFor.has(file)) sourceFor.set(file, await readFile(file, "utf8"));
@@ -151,20 +157,36 @@ const threeCore = importMap.three.replace(/[^/]*$/, "three.core.js");
 const preloadedModules = new Set();
 for (const link of modulePreloads) {
   if (link.href.startsWith("https://")) {
-    assert.equal(link.href, threeCore, `index.html: unexpected modulepreload ${link.href}`);
-    assert.ok(link.crossorigin, `index.html: modulepreload ${link.href} needs crossorigin`);
+    assert.equal(
+      link.href,
+      threeCore,
+      `index.html: unexpected modulepreload ${link.href}`,
+    );
+    assert.ok(
+      link.crossorigin,
+      `index.html: modulepreload ${link.href} needs crossorigin`,
+    );
     continue;
   }
   assert.ok(
     (await stat(link.href).catch(() => null))?.isFile(),
     `index.html: modulepreload ${link.href} points at a missing file`,
   );
-  assert.ok(reachable.has(link.href), `index.html: modulepreload ${link.href} is not reachable from src/main.js`);
-  assert.ok(!preloadedModules.has(link.href), `index.html: duplicate modulepreload ${link.href}`);
+  assert.ok(
+    reachable.has(link.href),
+    `index.html: modulepreload ${link.href} is not reachable from src/main.js`,
+  );
+  assert.ok(
+    !preloadedModules.has(link.href),
+    `index.html: duplicate modulepreload ${link.href}`,
+  );
   preloadedModules.add(link.href);
 }
 for (const file of reachable)
-  assert.ok(preloadedModules.has(file), `index.html: add <link rel="modulepreload" href="${file}"> for ${file}`);
+  assert.ok(
+    preloadedModules.has(file),
+    `index.html: add <link rel="modulepreload" href="${file}"> for ${file}`,
+  );
 assert.ok(
   modulePreloads.some((link) => link.href === threeCore),
   `index.html: add <link rel="modulepreload" href="${threeCore}" crossorigin>`,
@@ -181,7 +203,8 @@ for (const file of reachable) {
   const urlArguments = [];
   (function visit(node) {
     if (!node || typeof node.type !== "string") return;
-    if (node.type === "Literal" && typeof node.value === "string") literals.add(node.value);
+    if (node.type === "Literal" && typeof node.value === "string")
+      literals.add(node.value);
     if (
       node.type === "NewExpression" &&
       node.callee.name === "URL" &&
@@ -195,24 +218,48 @@ for (const file of reachable) {
   const resolved = new Set();
   for (const argument of urlArguments) {
     let options = [""];
-    const quasis = argument.type === "TemplateLiteral" ? argument.quasis : [{ value: { cooked: argument.value } }];
+    const quasis =
+      argument.type === "TemplateLiteral"
+        ? argument.quasis
+        : [{ value: { cooked: argument.value } }];
     quasis.forEach((quasi, index) => {
       options = options.map((prefix) => prefix + quasi.value.cooked);
       if (index < quasis.length - 1)
-        options = options.flatMap((prefix) => [...literals].map((literal) => prefix + literal));
+        options = options.flatMap((prefix) =>
+          [...literals].map((literal) => prefix + literal),
+        );
     });
     for (const option of options)
-      resolved.add(path.posix.normalize(path.posix.join(path.posix.dirname(file.split(path.sep).join("/")), option)));
+      resolved.add(
+        path.posix.normalize(
+          path.posix.join(
+            path.posix.dirname(file.split(path.sep).join("/")),
+            option,
+          ),
+        ),
+      );
   }
-  loaderUrls.set(file, { resolved, literals, usesTextureLoader: code.includes("THREE.TextureLoader") });
+  loaderUrls.set(file, {
+    resolved,
+    literals,
+    usesTextureLoader: code.includes("THREE.TextureLoader"),
+  });
 }
 const preloadedAssets = new Set();
 const assetPreloads = [
   ...links.filter((item) => item.rel === "preload"),
-  ...fetchPreloads.map((href) => ({ rel: "preload", href, as: "fetch", crossorigin: true })),
+  ...fetchPreloads.map((href) => ({
+    rel: "preload",
+    href,
+    as: "fetch",
+    crossorigin: true,
+  })),
 ];
 for (const link of assetPreloads) {
-  assert.ok(assetPattern.test(link.href), `index.html: unexpected preload ${link.href}`);
+  assert.ok(
+    assetPattern.test(link.href),
+    `index.html: unexpected preload ${link.href}`,
+  );
   assert.ok(
     (await stat(link.href).catch(() => null))?.isFile(),
     `index.html: preload ${link.href} points at a missing file`,
@@ -221,12 +268,22 @@ for (const link of assetPreloads) {
     ({ resolved, literals }) =>
       resolved.has(link.href) ||
       [...resolved].some(
-        (url) => url.endsWith("/") && link.href.startsWith(url) && literals.has(link.href.slice(url.length)),
+        (url) =>
+          url.endsWith("/") &&
+          link.href.startsWith(url) &&
+          literals.has(link.href.slice(url.length)),
       ),
   );
   assert.ok(owner, `index.html: no loader requests ${link.href}`);
-  assert.equal(link.as, owner.usesTextureLoader ? "image" : "fetch", `index.html: preload ${link.href} has the wrong as=`);
-  assert.ok(link.crossorigin, `index.html: preload ${link.href} needs crossorigin`);
+  assert.equal(
+    link.as,
+    owner.usesTextureLoader ? "image" : "fetch",
+    `index.html: preload ${link.href} has the wrong as=`,
+  );
+  assert.ok(
+    link.crossorigin,
+    `index.html: preload ${link.href} needs crossorigin`,
+  );
   preloadedAssets.add(link.href);
 }
 for (const { resolved, literals } of loaderUrls.values()) {
@@ -235,7 +292,10 @@ for (const { resolved, literals } of loaderUrls.values()) {
   );
   for (const url of urls)
     if (assetPattern.test(url) && (await stat(url).catch(() => null)))
-      assert.ok(preloadedAssets.has(url), `index.html: add <link rel="preload" href="${url}"> for ${url}`);
+      assert.ok(
+        preloadedAssets.has(url),
+        `index.html: add <link rel="preload" href="${url}"> for ${url}`,
+      );
 }
 console.log(
   `Syntax OK: ${files.length} module files + ${scripts.length} inline scripts. Import-map/path checks OK: ${imports} imports, ${exportsByFile.size} local targets, 3 matching HTML import maps. Preloads OK: ${preloadedModules.size} modules, ${preloadedAssets.size} assets.`,

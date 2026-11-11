@@ -16,38 +16,58 @@ class FilmOutputPass extends OutputPass {
   render(renderer, ...args) {
     const toneMapping = renderer.toneMapping;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    try { super.render(renderer, ...args); }
-    finally { renderer.toneMapping = toneMapping; }
+    try {
+      super.render(renderer, ...args);
+    } finally {
+      renderer.toneMapping = toneMapping;
+    }
   }
 }
 class ScaledAO extends GTAOPass {
   setSize(width, height) {
     const scale = quality.tier === "ultra" ? 0.67 : 0.5;
-    super.setSize(Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale)));
+    super.setSize(
+      Math.max(1, Math.round(width * scale)),
+      Math.max(1, Math.round(height * scale)),
+    );
   }
   render(renderer, ...args) {
     // The world's RenderPass already refreshed the single sun shadow map this frame.
     const autoUpdate = renderer.shadowMap.autoUpdate;
     renderer.shadowMap.autoUpdate = false;
-    try { super.render(renderer, ...args); }
-    finally { renderer.shadowMap.autoUpdate = autoUpdate; }
+    try {
+      super.render(renderer, ...args);
+    } finally {
+      renderer.shadowMap.autoUpdate = autoUpdate;
+    }
   }
 }
 class ScaledBloom extends UnrealBloomPass {
   setSize(width, height) {
-    super.setSize(Math.max(1, Math.round(width * quality.bloomScale)), Math.max(1, Math.round(height * quality.bloomScale)));
+    super.setSize(
+      Math.max(1, Math.round(width * quality.bloomScale)),
+      Math.max(1, Math.round(height * quality.bloomScale)),
+    );
   }
 }
 
 export function createPost(renderer) {
-  const target = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType });
+  const target = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
+    type: THREE.HalfFloatType,
+  });
   target.texture.name = "World HDR";
   const composer = new EffectComposer(renderer, target);
   const world = new RenderPass(scene, camera);
   composer.addPass(world);
   const ao = new ScaledAO(scene, camera);
   ao.blendIntensity = 0.45;
-  ao.updateGtaoMaterial({ radius: 0.55, thickness: 0.8, distanceExponent: 2, distanceFallOff: 0.8, samples: 8 });
+  ao.updateGtaoMaterial({
+    radius: 0.55,
+    thickness: 0.8,
+    distanceExponent: 2,
+    distanceFallOff: 0.8,
+    samples: 8,
+  });
   ao.updatePdMaterial({ samples: 8, radius: 6 });
   composer.addPass(ao);
   const viewmodel = new RenderPass(vmScene, vmCamera);
@@ -59,7 +79,8 @@ export function createPost(renderer) {
   composer.addPass(new FilmOutputPass());
   const grade = new ShaderPass({
     uniforms: { tDiffuse: { value: null } },
-    vertexShader: "varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+    vertexShader:
+      "varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
     fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
       void main(){
         vec4 source=texture2D(tDiffuse,vUv);
@@ -79,7 +100,8 @@ export function createPost(renderer) {
   const environmentRotation = new THREE.Quaternion();
   const worldRotation = new THREE.Quaternion();
   function resize(width, height, scale) {
-    const w = Math.max(1, Math.round(width * scale)), h = Math.max(1, Math.round(height * scale));
+    const w = Math.max(1, Math.round(width * scale)),
+      h = Math.max(1, Math.round(height * scale));
     ao.enabled = quality.gtao;
     smaa.enabled = quality.tier !== "low";
     fxaa.enabled = quality.tier === "low";
@@ -91,7 +113,9 @@ export function createPost(renderer) {
     // The weapon lives in camera space; rotate its IBL back into that same space.
     environmentRotation.copy(camera.quaternion).invert();
     worldRotation.setFromEuler(scene.environmentRotation);
-    vmScene.environmentRotation.setFromQuaternion(environmentRotation.multiply(worldRotation));
+    vmScene.environmentRotation.setFromQuaternion(
+      environmentRotation.multiply(worldRotation),
+    );
     composer.render(dt);
   }
   async function warmVariants() {

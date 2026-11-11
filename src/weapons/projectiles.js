@@ -70,10 +70,15 @@ let wasFiring = false;
 // Resolve the camera ray before drawing from the muzzle, so the crosshair owns the hit.
 function traceHeatRay() {
   const origin = camera.position;
-  let distance = HEAT_RAY_RANGE, enemy = null, type = null;
+  let distance = HEAT_RAY_RANGE,
+    enemy = null,
+    type = null;
   if (_dir.y < -1e-6) {
     const ground = -origin.y / _dir.y;
-    if (ground >= 0 && ground <= distance) { distance = ground; type = "sand"; }
+    if (ground >= 0 && ground <= distance) {
+      distance = ground;
+      type = "sand";
+    }
   }
   for (const e of enemies) {
     if (e.dead) continue;
@@ -85,7 +90,11 @@ function traceHeatRay() {
       discriminant = projection * projection - c;
     if (discriminant < 0) continue;
     const t = c <= 0 ? 0 : -projection - Math.sqrt(discriminant);
-    if (t >= 0 && t < distance) { distance = t; enemy = e; type = "monster"; }
+    if (t >= 0 && t < distance) {
+      distance = t;
+      enemy = e;
+      type = "monster";
+    }
   }
   _impact.copy(origin).addScaledVector(_dir, distance);
   if (
@@ -167,13 +176,23 @@ function shoot(dt) {
   getMuzzleWorldPosition(_tip);
   if (S.weapon === WEAPON_HEAT_RAY) {
     const spread = player.aiming ? HEAT_RAY_SPREAD_AIMED : HEAT_RAY_SPREAD_HIP;
-    _spread.set(rand(-spread, spread), rand(-spread, spread), rand(-spread, spread));
+    _spread.set(
+      rand(-spread, spread),
+      rand(-spread, spread),
+      rand(-spread, spread),
+    );
     _dir.add(_spread).normalize();
   } else {
     _target.copy(camera.position).addScaledVector(_dir, SPONGE_AIM_DISTANCE);
     _dir.copy(_target).sub(_tip).normalize();
   }
-  emit("shot", { weapon: S.weapon, aiming: player.aiming, mega, origin: _tip, dir: _dir });
+  emit("shot", {
+    weapon: S.weapon,
+    aiming: player.aiming,
+    mega,
+    origin: _tip,
+    dir: _dir,
+  });
   if (S.weapon === WEAPON_HEAT_RAY) {
     player.fireCd = rapid ? HEAT_RAY_COOLDOWN_RAPID : HEAT_RAY_COOLDOWN;
     S.water = Math.max(0, S.water - cost);
@@ -278,7 +297,12 @@ export function updateProjectiles(dt, _frame) {
           rr = 0.8 * e.s + b.r;
         if (dx * dx + dy * dy + dz * dz < rr * rr) {
           damageEnemy(e, b.dmg, b.m.position);
-          emit("hit", { pos: b.m.position, enemy: e, dmg: b.dmg, killed: e.dead });
+          emit("hit", {
+            pos: b.m.position,
+            enemy: e,
+            dmg: b.dmg,
+            killed: e.dead,
+          });
           if (e.dead) emit("kill", { pos: b.m.position, enemy: e });
           dead = true;
           break;

@@ -42,7 +42,14 @@ function installSeed() {
     },
     true,
   );
-  window.__perf = { frames: [], last: 0, readyMs: 0, clickMs: 0, clearMs: 0, endMs: 0 };
+  window.__perf = {
+    frames: [],
+    last: 0,
+    readyMs: 0,
+    clickMs: 0,
+    clearMs: 0,
+    endMs: 0,
+  };
   new MutationObserver(() => {
     const button = document.getElementById("playBtn");
     if (button && !button.disabled && !window.__perf.readyMs)
@@ -139,7 +146,9 @@ async function runOnce(origin) {
     await page.waitForTimeout(1000);
     await page.mouse.click(x, y);
     await page.evaluate(async () => {
-      window.__perfWaveState = (await import(new URL("src/core/state.js", location.href).href)).waveState;
+      window.__perfWaveState = (
+        await import(new URL("src/core/state.js", location.href).href)
+      ).waveState;
     });
     for (let wave = 1; wave <= WAVES; wave++) {
       await page.waitForFunction(
@@ -172,7 +181,9 @@ async function runOnce(origin) {
       run.waves.push({
         wave,
         ...describe(
-          frames.filter((frame) => frame.mode === "play" && frame.wave === wave),
+          frames.filter(
+            (frame) => frame.mode === "play" && frame.wave === wave,
+          ),
         ),
       });
     }

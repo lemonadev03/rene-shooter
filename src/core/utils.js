@@ -102,14 +102,4 @@ function sph(r, m, x = 0, y = 0, z = 0, w = 18, h = 14) {
   return ms;
 }
 
-export {
-  $,
-  clamp,
-  rand,
-  V3,
-  canvasTex,
-  mat,
-  box,
-  cyl,
-  sph,
-};
+export { $, clamp, rand, V3, canvasTex, mat, box, cyl, sph };
