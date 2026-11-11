@@ -48,7 +48,8 @@ export function buildSolarSoakerHD({ textureBase = new URL('../../assets/weapons
   const distSegment = (x,y,a,b) => {
     const dx=b[0]-a[0],dy=b[1]-a[1];
     const t=THREE.MathUtils.clamp(((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy),0,1);
-    return Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy);
+    const sx=x-a[0]-t*dx,sy=y-a[1]-t*dy;
+    return sx*sx+sy*sy;
   };
   // Curvature bake: distance to the real outer contour and every cut-out, in metres.
   // Noise only breaks up that edge mask; it never places random chips on panel interiors.
@@ -62,8 +63,9 @@ export function buildSolarSoakerHD({ textureBase = new URL('../../assets/weapons
     const segments=contours.flatMap(c=>c.map((p,i)=>[p,c[(i+1)%c.length]]));
     for(let py=0;py<size;py++) for(let px=0;px<size;px++) {
       const x=minX+(px-pad)/(size-2*pad)*w,y=minY+(py-pad)/(size-2*pad)*h;
-      let d=1e9;
+      let d=1e18;
       for(const [a,b] of segments) d=Math.min(d,distSegment(x,y,a,b));
+      d=Math.sqrt(d);
       const n=hash(px,py,id), coarse=hash(Math.floor(px/5),Math.floor(py/5),id+11);
       const cluster=hash(Math.floor(px/21),Math.floor(py/21),id+97);
       const edge=d < (.00015+coarse*.0014+Math.pow(cluster,12)*.012) && coarse>.40 && n>.20;
