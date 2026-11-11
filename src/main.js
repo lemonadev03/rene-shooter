@@ -24,7 +24,12 @@ import { initSky, updateSky } from "./world/sky.js";
 import { initBeach, updateBeach } from "./world/beach.js";
 import { initOcean, updateOcean } from "./world/ocean.js";
 import { initPools, updatePoolsAndBeacons } from "./world/pools.js";
-import { updatePlayer, updateSurvival, tryJump } from "./player/controller.js";
+import {
+  updatePlayer,
+  updateSurvival,
+  tryJump,
+  resetController,
+} from "./player/controller.js";
 import { updateCamera, updateTitleCamera, aimAt } from "./player/fpcamera.js";
 import { vmScene, vmCamera, updateViewmodel } from "./weapons/viewmodel.js";
 import {
@@ -43,13 +48,15 @@ import {
   resetWaves,
   updateWaves,
   killAll,
+  pauseWaveTimers,
+  resumeWaveTimers,
 } from "./enemies/waves.js";
 import { initParticles, updateParts } from "./vfx/particles.js";
 import { initBeam, updateBeam } from "./vfx/beam.js";
 import { initImpacts, updateImpacts } from "./vfx/impacts.js";
 import { initHitmarker, updateHitmarker } from "./vfx/hitmarker.js";
 import { PU_TYPES, updatePowerups, releasePowerup } from "./ui/powerups.js";
-import { updateHud, setWeapon, initShares } from "./ui/hud.js";
+import { updateHud, setWeapon, initShares, hideBanner } from "./ui/hud.js";
 import { stageWarmup, warmDom } from "./warmup.js";
 import {
   MAX_HP,
@@ -86,6 +93,8 @@ function gameOver(won) {
 function startGame() {
   resetWaves();
   resetInput();
+  resetController();
+  hideBanner();
   enemies.forEach((e) => releaseMonster(e));
   enemies.length = 0;
   resetProjectiles();
@@ -148,6 +157,14 @@ initInput({ tryJump, setWeapon });
 initShares();
 $("playBtn").addEventListener("click", startGame);
 $("againBtn").addEventListener("click", startGame);
+// The frame loop stops while the tab is hidden, so wave timers stop with it.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (state.mode === "play") pauseWaveTimers();
+  } else {
+    resumeWaveTimers();
+  }
+});
 window.__game = {
   renderer,
   quality,

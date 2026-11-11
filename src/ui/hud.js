@@ -16,11 +16,17 @@ const EL = {
 };
 
 let _hudFrame = -9;
+let bannerTimer = 0;
+function hideBanner() {
+  clearTimeout(bannerTimer);
+  $("banner").classList.add("hidden");
+}
 function showBanner(t, s) {
+  clearTimeout(bannerTimer);
   $("bannerTitle").textContent = t;
   $("bannerSub").textContent = s;
   $("banner").classList.remove("hidden");
-  setTimeout(() => $("banner").classList.add("hidden"), 2200);
+  bannerTimer = setTimeout(() => $("banner").classList.add("hidden"), 2200);
 }
 function feed(txt) {
   const d = document.createElement("div");
@@ -105,4 +111,4 @@ export function updateHud(frame, expectedAlive, powerupTypes) {
     if (act.length) setText("power", act.join("  ·  "));
   }
 }
-export { EL, showBanner, feed, setWeapon, initShares };
+export { EL, showBanner, hideBanner, feed, setWeapon, initShares };
