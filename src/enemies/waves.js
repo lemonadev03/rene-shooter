@@ -3,11 +3,10 @@ import { rand } from "../core/utils.js";
 import { beep } from "../core/audio.js";
 import { addEnemy, killEnemy, releaseMonster } from "./monsters.js";
 import { showBanner } from "../ui/hud.js";
+import { pickKind, waveCount } from "./waveComposition.js";
 import { MAX_HP, MAX_CHARGE } from "../config/session.js";
 import {
   FINAL_WAVE,
-  WAVE_COUNT_BASE,
-  WAVE_COUNT_PER_WAVE,
   STAGGER_FLOOR_MS,
   STAGGER_BASE_MS,
   STAGGER_SLOPE_MS,
@@ -17,14 +16,6 @@ import {
   WAVE_CLEAR_CHARGE,
   WAVE_SUBS,
 } from "../config/waves.js";
-
-function pickKind(n, i) {
-  if (n === 1) return i % 4 === 3 ? 3 : 0; // imps + dashers
-  if (n === 2) return [0, 3, 0, 4, 0, 1][i % 6]; // + boomers, first brute
-  if (n === 3) return [0, 2, 3, 5, 0, 4, 1, 2][i % 8]; // + spitters, splitters
-  if (n === 4) return [6, 0, 7, 3, 2, 5, 1, 4, 0, 6][i % 10]; // + wardens, shamans
-  return [1, 3, 6, 2, 7, 4, 5, 0, 3, 6, 1, 2][i % 12]; // everything, often
-}
 
 // Wave timers run on the wall clock, so they are pausable: while the tab is
 // hidden the frame loop stops, and they must stop with it.
@@ -78,7 +69,7 @@ export function resetWaves() {
 export function spawnWave(n) {
   S.wave = n;
   document.getElementById("wavePill").textContent = "WAVE " + n;
-  const count = WAVE_COUNT_BASE + n * WAVE_COUNT_PER_WAVE;
+  const count = waveCount(n);
   waveState.pending = count;
   showBanner("WAVE " + n, WAVE_SUBS[n] || "They are getting hotter…");
   beep(180, 0.25, "sawtooth", 0.07, -80);

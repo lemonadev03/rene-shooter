@@ -5,6 +5,7 @@ const eslint = new ESLint();
 const results = await eslint.lintFiles([
   "src/**/*.js",
   "scripts/**/*.mjs",
+  "test/**/*.mjs",
   "eslint.config.mjs",
 ]);
 for (const script of await browserScripts()) {

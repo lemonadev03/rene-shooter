@@ -1,11 +1,12 @@
 import * as THREE from "three";
 import { scene, camera, enemies } from "../core/state.js";
+import { maxGlowing } from "./waveComposition.js";
 
-// Wave 5 spawns 3 brutes and 2 shamans, and waves never overlap, so five glowing
-// monsters is the most that can be alive at once. Three.js puts the scene's
+// The most glowing monsters alive at once, derived from the wave data and the `glow`
+// flags in src/config/monsters.js (waves never overlap). Three.js puts the scene's
 // point-light count into every lit shader's program key, so these slots are always
 // in the scene (idle ones at intensity 0) and the count never changes.
-export const MAX_MONSTER_LIGHTS = 5;
+export const MAX_MONSTER_LIGHTS = maxGlowing();
 const slots = [];
 const lit = [];
 const _v3 = new THREE.Vector3();

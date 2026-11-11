@@ -20,6 +20,7 @@ Use Node 22.13+ or 24+. Run `npm ci`, then `npx playwright install chromium`. On
 - `npm run lint`: ESLint over `src/`, `scripts/` and the inline scripts in the HTML pages. Existing warnings have a per-rule ceiling; new ones fail.
 - `npm run check`: Node syntax checks, matching import maps, local import paths and named exports.
 - `npm run smoke`: loads the game, plays waves 1 and 2, fails on page or console errors and on `#err` text. Defaults to software WebGL (CI); `SMOKE_GPU=metal npm run smoke` uses the Mac GPU.
+- `npm test`: Node's built-in runner over `test/*.test.mjs`. Tests import only `src/config/*` and `src/enemies/waveComposition.js`, which must stay loadable in plain Node (no DOM, no `three`). CI runs it.
 - `npm run typecheck`: `tsc --noEmit` over the files listed in `tsconfig.json` `include`. To opt a file in, add `// @ts-check` and JSDoc types to it, then add it to `include`; CI runs it.
 - `npm run perf [-- --runs 3 --q high --json out.json --url <deployed base URL>]`: plays waves 1 to 5 with a seeded `Math.random` on the Mac GPU and prints frame times and shader program counts per wave. Local only; not part of CI.
 
@@ -42,8 +43,9 @@ Gameplay tuning numbers live in `src/config/`, one dependency-free `// @ts-check
 - `weapons.js`: weapon IDs, cadence, charge costs, damage, spread and projectile numbers, including the monsters' water jets.
 - `waves.js`: final wave, count and stagger formulas, clear delay, rewards and the banner copy (`WAVE_SUBS`). Spawn stagger and the next-wave delay are wall-clock `setTimeout` (ms); the clear delay is game time (s).
 - `powerups.js`: `PU_TYPES` and pickup, lifetime, spawn cadence, cap and heal numbers. `PU_TYPES` is re-exported from `src/ui/powerups.js`.
+- `monsters.js`: `MON`, one stats entry per kind, plus the `glow` flag (the kind carries a `makeGlow` anchor; a check in `createMonster` throws if it disagrees with the builder) and `splitsInto` (kinds spawned on death).
 
-Elsewhere: `src/enemies/monsters.js` (`MON` and abilities), `pickKind` in `src/enemies/waves.js` (which monsters spawn), and `src/core/quality.js`. Shader, material and art constants stay beside the code that uses them.
+Elsewhere: abilities in `src/enemies/monsters.js`, `pickKind` in `src/enemies/waveComposition.js` (which monsters spawn; pure, with `waveCount`, `waveKinds`, `maxAliveByKind` and `maxGlowing`), and `src/core/quality.js`. Shader, material and art constants stay beside the code that uses them.
 
 ## Timers
 
@@ -51,5 +53,5 @@ Wave spawn and next-wave timers go through `scheduleTimer` in `src/enemies/waves
 
 ## Rendering rules
 
-- Never add or remove lights during play. Three.js puts the scene's light counts into every lit shader's program key, so a change recompiles the whole scene (a 0.1–2 s freeze). Glowing monsters use `makeGlow` anchors in `src/enemies/monsters.js`, which `src/enemies/monsterLights.js` copies into `MAX_MONSTER_LIGHTS` fixed slots each frame. If a wave can hold more glowing monsters at once, raise that constant.
+- Never add or remove lights during play. Three.js puts the scene's light counts into every lit shader's program key, so a change recompiles the whole scene (a 0.1–2 s freeze). Glowing monsters use `makeGlow` anchors in `src/enemies/monsters.js`, which `src/enemies/monsterLights.js` copies into `MAX_MONSTER_LIGHTS` fixed slots each frame. `MAX_MONSTER_LIGHTS` and `MONSTER_POOL_SIZE` are derived from the wave data (`maxGlowing()` and `maxAliveByKind()` in `src/enemies/waveComposition.js`), so changing the waves or the `glow` flags in `src/config/monsters.js` adjusts them automatically; `npm test` pins today's values.
 - Static parts of new monsters and props (eyes, feet, horns, trim) go through `mergeStaticChildren` in `src/world/staticBatch.js` at the end of their builder, with every animated or later-referenced child passed in `exclude`. Each separate mesh costs a draw call in both the main and shadow passes.

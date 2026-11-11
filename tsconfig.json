@@ -18,6 +18,8 @@
     "src/config/player.js",
     "src/config/weapons.js",
     "src/config/waves.js",
-    "src/config/powerups.js"
+    "src/config/powerups.js",
+    "src/config/monsters.js",
+    "src/enemies/waveComposition.js"
   ]
 }

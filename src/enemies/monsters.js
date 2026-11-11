@@ -14,6 +14,8 @@ import { hurtPlayer } from "../player/controller.js";
 import { inSea, bedY } from "../world/ocean.js";
 import { resolveCollision } from "../core/collision.js";
 import { mergeStaticChildren } from "../world/staticBatch.js";
+import { MON } from "../config/monsters.js";
+import { maxAliveByKind } from "./waveComposition.js";
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
@@ -38,90 +40,6 @@ const _flameMats = [
 ]; // splash-droplet crowns
 const _flameConeGeo = new THREE.ConeGeometry(0.13, 0.5, 7),
   _flameTopGeo = new THREE.ConeGeometry(0.17, 0.66, 7);
-// 0 imp · 1 brute(slam) · 2 spitter · 3 dasher · 4 exploder · 5 splitter · 6 shielded · 7 healer
-const MON = [
-  {
-    name: "DROPLET",
-    s: 1.0,
-    body: 0x2196f3,
-    belly: 0xbae6fd,
-    hp: 36,
-    speed: 3.8,
-    score: 100,
-    dmg: 10,
-  },
-  {
-    name: "TIDE BRUTE",
-    s: 1.7,
-    body: 0x0369a1,
-    belly: 0x7dd3fc,
-    hp: 175,
-    speed: 2.3,
-    score: 300,
-    dmg: 18,
-  },
-  {
-    name: "JETTER",
-    s: 1.15,
-    body: 0x06b6d4,
-    belly: 0xcffafe,
-    hp: 62,
-    speed: 2.8,
-    score: 175,
-    dmg: 9,
-  },
-  {
-    name: "SURFER",
-    s: 0.92,
-    body: 0x22d3ee,
-    belly: 0xecfeff,
-    hp: 34,
-    speed: 4.7,
-    score: 150,
-    dmg: 11,
-  },
-  {
-    name: "GUSHER",
-    s: 1.12,
-    body: 0x2563eb,
-    belly: 0x93c5fd,
-    hp: 34,
-    speed: 4.3,
-    score: 175,
-    dmg: 8,
-  },
-  {
-    name: "PUDDLER",
-    s: 1.3,
-    body: 0x7c3aed,
-    belly: 0xddd6fe,
-    hp: 95,
-    speed: 2.9,
-    score: 225,
-    dmg: 12,
-  },
-  {
-    name: "CORAL WARDEN",
-    s: 1.25,
-    body: 0x0e7490,
-    belly: 0xa5f3fc,
-    hp: 95,
-    speed: 2.1,
-    score: 275,
-    dmg: 14,
-    shield: 55,
-  },
-  {
-    name: "RAIN SHAMAN",
-    s: 1.05,
-    body: 0x4f46e5,
-    belly: 0xe0e7ff,
-    hp: 58,
-    speed: 2.8,
-    score: 300,
-    dmg: 8,
-  },
-];
 // Marks where a monster glows; updateMonsterLights copies it into a shared light slot.
 function makeGlow(color, intensity, distance) {
   const anchor = new THREE.Object3D();
@@ -378,6 +296,12 @@ function createMonster(kind) {
   if (shieldMesh) {
     mergeStaticChildren(shieldMesh);
   }
+  // The light-slot count is derived from MON[].glow, so the flag must match the anchor.
+  if (Boolean(glow) !== Boolean(def.glow)) {
+    throw new Error(
+      `MON[${kind}].glow is ${Boolean(def.glow)} but the builder ${glow ? "calls" : "never calls"} makeGlow`,
+    );
+  }
   return { g, flames, arms, bodyMat, hpBar, s, shieldMesh, spinPart, glow };
 }
 // Pooled monsters keep their materials and geometry for good: disposing them would
@@ -385,9 +309,10 @@ function createMonster(kind) {
 // (transforms, visibility, body glow) is recorded once at creation and restored on
 // every reuse; the pool never holds more than the most that were alive at once.
 const monsterPools = MON.map(() => []);
-// Most of each kind that one wave can hold at once (waves.js pickKind), counting the
-// two droplets a splitter leaves behind. Warm-up builds this many up front.
-const MONSTER_POOL_SIZE = [8, 3, 3, 3, 2, 2, 3, 2];
+// Most of each kind that one wave can hold at once, counting the droplets a splitter
+// leaves behind. Derived from the wave data in waveComposition.js. Warm-up builds this
+// many up front.
+const MONSTER_POOL_SIZE = maxAliveByKind();
 const monsterSlots = new WeakMap();
 function acquireMonster(kind) {
   const pooled = monsterPools[kind].pop();
