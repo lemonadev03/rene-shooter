@@ -8,7 +8,7 @@ import {
   input,
   enemies,
   bullets,
-  fireballs,
+  waterJets,
 } from "../core/state.js";
 import { projectileHitsSolid, _hitP } from "../core/collision.js";
 import { beep, noiseHit } from "../core/audio.js";
@@ -122,7 +122,7 @@ const fireGeo = new THREE.SphereGeometry(0.18, 10, 10),
     opacity: 0.92,
   });
 // mesh pools: avoid alloc/GC churn at ~18 shots/sec
-const _fPool = [],
+const _jetPool = [],
   _sPool = [];
 function _getMesh(pool, geo, mat) {
   const m = pool.pop() || new THREE.Mesh(geo, mat);
@@ -217,8 +217,8 @@ function shoot(dt) {
   }
 }
 
-function spitFire(e) {
-  const m = _getMesh(_fPool, fireGeo, fireMat);
+function fireWaterJet(e) {
+  const m = _getMesh(_jetPool, fireGeo, fireMat);
   _v3.copy(e.pos);
   _v3.y += 1.0 * e.s;
   m.position.copy(_v3);
@@ -229,7 +229,7 @@ function spitFire(e) {
   v.x += player.vel.x * WATER_JET_LEAD;
   v.z += player.vel.z * WATER_JET_LEAD;
   v.normalize().multiplyScalar(WATER_JET_SPEED);
-  fireballs.push({ m, v, life: WATER_JET_LIFE });
+  waterJets.push({ m, v, life: WATER_JET_LIFE });
   beep(320, 0.14, "sawtooth", 0.035, -160);
 }
 
@@ -289,9 +289,9 @@ export function updateProjectiles(dt, _frame) {
       bullets.splice(i, 1);
     }
   }
-  // --- fireballs ---
-  for (let i = fireballs.length - 1; i >= 0; i--) {
-    const b = fireballs[i];
+  // --- water jets ---
+  for (let i = waterJets.length - 1; i >= 0; i--) {
+    const b = waterJets[i];
     b.life -= dt;
     const fx0 = b.m.position.x,
       fy0 = b.m.position.y,
@@ -324,8 +324,8 @@ export function updateProjectiles(dt, _frame) {
       dead = true;
     }
     if (dead) {
-      _freeMesh(_fPool, b.m);
-      fireballs.splice(i, 1);
+      _freeMesh(_jetPool, b.m);
+      waterJets.splice(i, 1);
     }
   }
 }
@@ -333,19 +333,19 @@ export function resetProjectiles() {
   wasFiring = false;
   bullets.forEach((b) => _freeMesh(b.pool, b.m));
   bullets.length = 0;
-  fireballs.forEach((b) => _freeMesh(_fPool, b.m));
-  fireballs.length = 0;
+  waterJets.forEach((b) => _freeMesh(_jetPool, b.m));
+  waterJets.length = 0;
 }
 // Hands the loading step one pooled mesh of each kind so their materials compile
 // before the first shot; returnWarmupMeshes puts them back in the pools.
 function takeWarmupMeshes() {
   return [
-    _getMesh(_fPool, fireGeo, fireMat),
+    _getMesh(_jetPool, fireGeo, fireMat),
     _getMesh(_sPool, spongeGeo, spongeMat),
   ];
 }
 function returnWarmupMeshes([fire, sponge]) {
-  _freeMesh(_fPool, fire);
+  _freeMesh(_jetPool, fire);
   _freeMesh(_sPool, sponge);
 }
-export { shoot, spitFire, takeWarmupMeshes, returnWarmupMeshes };
+export { shoot, fireWaterJet, takeWarmupMeshes, returnWarmupMeshes };

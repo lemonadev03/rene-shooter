@@ -34,7 +34,7 @@ import { updateCamera, updateTitleCamera, aimAt } from "./player/fpcamera.js";
 import { vmScene, vmCamera, updateViewmodel } from "./weapons/viewmodel.js";
 import {
   shoot,
-  spitFire,
+  fireWaterJet,
   updateProjectiles,
   resetProjectiles,
 } from "./weapons/projectiles.js";
@@ -229,7 +229,7 @@ function animate(now) {
     shoot(dt);
     updatePowerups(dt);
     updateProjectiles(dt, ++frame);
-    updateMonsters(dt, t, spitFire);
+    updateMonsters(dt, t, fireWaterJet);
     const alive = updateWaves(dt, gameOver);
     if (state.comboT > 0) {
       state.comboT -= dt;

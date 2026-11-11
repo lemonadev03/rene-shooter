@@ -4,7 +4,7 @@ import { colliders } from "./state.js";
 // ===== collision primitives =====
 // colliders (all in world XZ; y0/y1 = vertical extent, used by bullets):
 //   circle {t:0,x,z,r} · capsule/segment {t:1,x,z,x2,z2,r} · oriented box {t:2,x,z,hx,hz,cs,sn}
-// bo:true = bullets/fireballs only (upper trunk etc.), never blocks walkers
+// bo:true = bullets/water jets only (upper trunk etc.), never blocks walkers
 const addCircle = (x, z, r, y1 = 2, y0 = 0) =>
   colliders.push({ t: 0, x, z, x2: x, z2: z, r, y0, y1 });
 const addSeg = (x, z, x2, z2, r, y1 = 2, y0 = 0, bo = false) =>

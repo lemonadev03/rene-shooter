@@ -5,7 +5,7 @@ import {
   player,
   input,
   look,
-  refillSpots,
+  sunPoolSpots,
   lifecycle,
 } from "../core/state.js";
 import { MAX_HP, MAX_CHARGE } from "../config/session.js";
@@ -247,7 +247,7 @@ export function updatePlayer(dt) {
 export function updateSurvival(dt) {
   // solar charge (S.water = charge %): sun pools charge fast, plain beach sun trickles, saltwater shorts the gun out
   const inOcean = inSea(player.pos.x, player.pos.z);
-  const spot = refillSpots.find(
+  const spot = sunPoolSpots.find(
     (s) => Math.hypot(player.pos.x - s.x, player.pos.z - s.z) < s.r,
   );
   const chargeRate = spot

@@ -101,7 +101,7 @@ export function spawnWave(n) {
 }
 export function killAll() {
   cancelWaveSpawns();
-  // Iteration also visits any droplets spawned by a splitter's death.
+  // Iteration also visits any droplets spawned by a Puddler's death.
   for (const e of enemies) killEnemy(e);
 }
 export function updateWaves(dt, gameOver) {

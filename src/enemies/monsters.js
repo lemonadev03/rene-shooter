@@ -5,7 +5,7 @@ import {
   state as S,
   player,
   enemies,
-  refillSpots,
+  sunPoolSpots,
 } from "../core/state.js";
 import { beep, noiseHit } from "../core/audio.js";
 import { spawnP } from "../vfx/particles.js";
@@ -20,7 +20,7 @@ const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 const _en = { x: 0, z: 0 };
-const _flameMats = [
+const _crownMats = [
   new THREE.MeshStandardMaterial({
     color: 0x38bdf8,
     emissive: 0x0284c7,
@@ -38,8 +38,8 @@ const _flameMats = [
     opacity: 0.8,
   }),
 ]; // splash-droplet crowns
-const _flameConeGeo = new THREE.ConeGeometry(0.13, 0.5, 7),
-  _flameTopGeo = new THREE.ConeGeometry(0.17, 0.66, 7);
+const _crownConeGeo = new THREE.ConeGeometry(0.13, 0.5, 7),
+  _crownTopGeo = new THREE.ConeGeometry(0.17, 0.66, 7);
 // Marks where a monster glows; updateMonsterLights copies it into a shared light slot.
 function makeGlow(color, intensity, distance) {
   const anchor = new THREE.Object3D();
@@ -83,20 +83,20 @@ function createMonster(kind) {
   belly.scale.set(1, 1, 0.6);
   g.add(belly);
   // splash-droplet crown: cones
-  const flames = [];
-  const fMats = _flameMats; // shared across all monsters
+  const crown = [];
+  const fMats = _crownMats; // shared across all monsters
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * 6.28;
-    const f = new THREE.Mesh(_flameConeGeo, fMats[i % 2]);
+    const f = new THREE.Mesh(_crownConeGeo, fMats[i % 2]);
     f.position.set(Math.cos(a) * 0.22, 1.18, Math.sin(a) * 0.22);
     f.rotation.set(Math.sin(a) * 0.35, 0, Math.cos(a) * 0.35);
     g.add(f);
-    flames.push(f);
+    crown.push(f);
   }
-  const fTop = new THREE.Mesh(_flameTopGeo, fMats[1]);
+  const fTop = new THREE.Mesh(_crownTopGeo, fMats[1]);
   fTop.position.y = 1.32;
   g.add(fTop);
-  flames.push(fTop);
+  crown.push(fTop);
   // eyes angry + mouth
   [-0.19, 0.19].forEach((x) => {
     const e = sph(0.085, mat(0xffffff, 0.25), x, 0.78, 0.46, 10, 10);
@@ -123,7 +123,7 @@ function createMonster(kind) {
     g.add(a);
     arms.push(a);
   });
-  // little feet coals
+  // little dark feet
   [-0.25, 0.25].forEach((x) =>
     g.add(sph(0.14, mat(0x2b1508, 0.9), x, 0.09, 0.1, 10, 8)),
   );
@@ -144,14 +144,14 @@ function createMonster(kind) {
   let shieldMesh = null,
     spinPart = null;
   if (kind === 3) {
-    // DASHER: swept mohawk + speed stripes
+    // SURFER: swept crest + speed stripes
     for (let i = 0; i < 4; i++) {
-      const f = new THREE.Mesh(_flameTopGeo, _flameMats[1]);
+      const f = new THREE.Mesh(_crownTopGeo, _crownMats[1]);
       f.position.set(0, 1.22 - i * 0.05, 0.28 - i * 0.2);
       f.rotation.x = -0.8;
       f.scale.setScalar(0.8);
       g.add(f);
-      flames.push(f);
+      crown.push(f);
     }
     [-1, 1].forEach((sd) =>
       g.add(box(0.02, 0.08, 0.5, mat(0xffffff, 0.4), 0.43 * sd, 0.66, 0)),
@@ -175,22 +175,22 @@ function createMonster(kind) {
       );
       g.add(c);
     });
-    const fuse = cyl(0.05, 0.07, 0.3, mat(0x94a3b8, 0.5, 0.5), 0, 1.45, 0, 8);
-    g.add(fuse);
+    const nozzle = cyl(0.05, 0.07, 0.3, mat(0x94a3b8, 0.5, 0.5), 0, 1.45, 0, 8);
+    g.add(nozzle);
   }
   if (kind === 5) {
-    // SPLITTER: two baby heads riding on top
+    // PUDDLER: two baby heads riding on top
     [-0.27, 0.27].forEach((x) => {
       const h = sph(0.24, bodyMat, x, 1.18, 0.05, 14, 12);
       g.add(h);
       [-0.08, 0.08].forEach((ex) =>
         g.add(sph(0.04, mat(0x1a0a00, 0.3), x + ex, 1.22, 0.27, 8, 8)),
       );
-      const f = new THREE.Mesh(_flameConeGeo, _flameMats[1]);
+      const f = new THREE.Mesh(_crownConeGeo, _crownMats[1]);
       f.position.set(x, 1.48, 0.05);
       f.scale.setScalar(0.7);
       g.add(f);
-      flames.push(f);
+      crown.push(f);
     });
   }
   if (kind === 6) {
@@ -232,7 +232,7 @@ function createMonster(kind) {
     g.add(shieldMesh);
   }
   if (kind === 7) {
-    // SHAMAN: halo + heal staff
+    // RAIN SHAMAN: halo + heal staff
     const halo = new THREE.Mesh(
       new THREE.TorusGeometry(0.3, 0.045, 8, 24),
       new THREE.MeshBasicMaterial({ color: 0x4ade80 }),
@@ -302,14 +302,14 @@ function createMonster(kind) {
       `MON[${kind}].glow is ${Boolean(def.glow)} but the builder ${glow ? "calls" : "never calls"} makeGlow`,
     );
   }
-  return { g, flames, arms, bodyMat, hpBar, s, shieldMesh, spinPart, glow };
+  return { g, crown, arms, bodyMat, hpBar, s, shieldMesh, spinPart, glow };
 }
 // Pooled monsters keep their materials and geometry for good: disposing them would
 // release compiled programs and bring back mid-play compiles. A monster's own state
 // (transforms, visibility, body glow) is recorded once at creation and restored on
 // every reuse; the pool never holds more than the most that were alive at once.
 const monsterPools = MON.map(() => []);
-// Most of each kind that one wave can hold at once, counting the droplets a splitter
+// Most of each kind that one wave can hold at once, counting the droplets a Puddler
 // leaves behind. Derived from the wave data in waveComposition.js. Warm-up builds this
 // many up front.
 const MONSTER_POOL_SIZE = maxAliveByKind();
@@ -349,7 +349,7 @@ function acquireMonster(kind) {
   return pooled;
 }
 // Safe to call twice for one monster. Never call it while `enemies` is being
-// iterated: a splitter's children are acquired during that loop and must not get a
+// iterated: a Puddler's children are acquired during that loop and must not get a
 // group that is still being visited.
 function releaseMonster(e) {
   const slot = monsterSlots.get(e.g);
@@ -385,7 +385,7 @@ function addEnemy(kind, x, z) {
     burstLeft: 0,
     burstT: 0,
     healCd: rand(2, 3.5),
-    fuse: -1,
+    burstTimer: -1,
     boost: 1,
     dashX: 0,
     dashZ: 0,
@@ -397,7 +397,7 @@ function addEnemy(kind, x, z) {
   spawnP(_v3, 14, 0x38bdf8, 2, 0.6, 1, 2.5);
   return e;
 }
-function explodeBoomer(e) {
+function burstGusher(e) {
   _v3.copy(e.pos);
   _v3.y += 0.8;
   spawnP(_v3, 36, 0x38bdf8, 4.2, 0.7, -4, 3.6);
@@ -411,7 +411,7 @@ function explodeBoomer(e) {
 function killEnemy(e, scored = true) {
   if (e.dead) return;
   e.dead = true;
-  if (e.kind === 4) explodeBoomer(e);
+  if (e.kind === 4) burstGusher(e);
   if (scored) {
     S.kills++;
     S.combo++;
@@ -430,7 +430,7 @@ function killEnemy(e, scored = true) {
     sz = e.pos.z;
   scene.remove(e.g);
   if (e.kind === 5) {
-    // SPLITTER pops into two imps
+    // PUDDLER pops into two Droplets
     feed("🫧 PUDDLER split into two droplets!");
     addEnemy(0, sx - 0.8, sz);
     addEnemy(0, sx + 0.8, sz);
@@ -476,14 +476,14 @@ function damageEnemy(e, dmg, hitPos) {
   if (e.hp <= 0) killEnemy(e, true);
 }
 
-export function updateMonsters(dt, t, spitFire) {
+export function updateMonsters(dt, t, fireWaterJet) {
   let alive = 0;
   for (const e of enemies) {
     if (e.dead) continue;
     alive++;
     // home turf: water monsters rehydrate (regen + haste) in the OCEAN only; sun pools dry them out — lure them onto dry sand and into the light
     const inWater = inSea(e.pos.x, e.pos.z);
-    const inSun = refillSpots.some(
+    const inSun = sunPoolSpots.some(
       (s) => Math.hypot(e.pos.x - s.x, e.pos.z - s.z) < s.r,
     );
     if (inWater && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + 5 * dt);
@@ -525,7 +525,7 @@ export function updateMonsters(dt, t, spitFire) {
         (inWater ? 1.18 : 1);
     // ---- per-type abilities ----
     if (e.kind === 0) {
-      // IMP: zigzag weave
+      // DROPLET: zigzag weave
       const w = Math.sin(e.phase * 1.6) * 0.55;
       mx = dx - dz * w;
       mz = dz + dx * w;
@@ -534,7 +534,7 @@ export function updateMonsters(dt, t, spitFire) {
       mz /= l;
     }
     if (e.kind === 3) {
-      // DASHER: windup → dash → tired (backsteps first if already in your face)
+      // SURFER: windup → lunge → tired (backsteps first if already in your face)
       if (e.state === "chase" && e.abCd <= 0 && dist < 13 && dist > 2.1) {
         e.state = "windup";
         e.stateT = 0.45;
@@ -586,24 +586,24 @@ export function updateMonsters(dt, t, spitFire) {
       }
     }
     if (e.kind === 4) {
-      // BOOMER: fuse at close range, then boom
-      if (e.fuse < 0 && dist < 2.5) {
-        e.fuse = 0.85;
+      // GUSHER: swells at close range, then bursts
+      if (e.burstTimer < 0 && dist < 2.5) {
+        e.burstTimer = 0.85;
         feed("💦 GUSHER is about to burst — MOVE!");
       }
-      if (e.fuse >= 0) {
-        e.fuse -= dt;
+      if (e.burstTimer >= 0) {
+        e.burstTimer -= dt;
         mv = 0;
-        e.boost = 1 + (0.85 - e.fuse) * 0.45 + Math.sin(t * 30) * 0.06;
+        e.boost = 1 + (0.85 - e.burstTimer) * 0.45 + Math.sin(t * 30) * 0.06;
         if (Math.random() < 0.25) beep(rand(950, 1250), 0.05, "square", 0.04);
-        if (e.fuse <= 0) {
+        if (e.burstTimer <= 0) {
           killEnemy(e, false);
           continue;
         }
       }
     }
     if (e.kind === 1) {
-      // BRUTE: ground slam (jump to dodge)
+      // TIDE BRUTE: ground slam (jump to dodge)
       if (e.state === "chase" && e.abCd <= 0 && dist < 6) {
         e.state = "windup";
         e.stateT = 0.55;
@@ -638,7 +638,7 @@ export function updateMonsters(dt, t, spitFire) {
       }
     }
     if (e.kind === 7 && e.healCd <= 0) {
-      // SHAMAN: heal the most-wounded ally nearby
+      // RAIN SHAMAN: heal the most-wounded ally nearby
       let best = null,
         bf = 1;
       for (const o of enemies) {
@@ -710,12 +710,12 @@ export function updateMonsters(dt, t, spitFire) {
         (0.78 + 0.22 * (e.hp / e.maxHp)) *
         e.boost,
     );
-    for (let fi = 0; fi < e.flames.length; fi++) {
+    for (let fi = 0; fi < e.crown.length; fi++) {
       const sc =
         (1 + Math.sin(t * 11 + fi * 1.7) * 0.28) *
         (0.35 + 0.65 * (e.hp / e.maxHp)) *
         (1 - e.wet * 0.4);
-      e.flames[fi].scale.set(sc, sc * (1 + Math.sin(t * 13 + fi) * 0.2), sc);
+      e.crown[fi].scale.set(sc, sc * (1 + Math.sin(t * 13 + fi) * 0.2), sc);
     }
     for (let ai = 0; ai < e.arms.length; ai++) {
       e.arms[ai].rotation.x = Math.sin(e.phase + ai * Math.PI) * 0.6 - 0.4;
@@ -747,18 +747,18 @@ export function updateMonsters(dt, t, spitFire) {
       spawnP(_v3, 12, 0x38bdf8, 2, 0.45, -3, 2);
     }
     if (e.kind === 2) {
-      // SPITTER: single shots, burst of 3 on wave 5
+      // JETTER: single shots, burst of 3 on wave 5
       if (e.burstLeft > 0) {
         e.burstT -= dt;
         if (e.burstT <= 0) {
           e.burstLeft--;
           e.burstT = 0.22;
-          spitFire(e);
+          fireWaterJet(e);
         }
       } else if (dist < 27 && dist > 4 && e.shootCd <= 0) {
         e.shootCd = rand(1.7, 2.6);
         e.burstLeft = S.wave >= 5 ? 2 : S.wave >= 4 ? 1 : 0;
-        spitFire(e);
+        fireWaterJet(e);
       }
     }
   }
