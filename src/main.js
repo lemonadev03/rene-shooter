@@ -38,7 +38,8 @@ import {
   updateProjectiles,
   resetProjectiles,
 } from "./weapons/projectiles.js";
-import { updateMonsters, releaseMonster } from "./enemies/monsters.js";
+import { updateMonsters } from "./enemies/monsters.js";
+import { releaseMonster } from "./enemies/monsterModel.js";
 import {
   initMonsterLights,
   updateMonsterLights,

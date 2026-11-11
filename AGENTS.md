@@ -8,6 +8,7 @@ Native browser ES modules; there is no production build. GitHub Pages serves `ma
 - `src/core/`: shared state, renderer, input, audio, assets, collisions, events, springs, helpers, quality tiers.
 - `src/world/`: beach, ocean, sun pools, sky, scenery.
 - `src/player/`, `src/weapons/`, `src/enemies/`: gameplay.
+- `src/enemies/monsterModel.js`: how a monster looks and is pooled (meshes, materials, glow anchors, static batching, `acquireMonster`, `releaseMonster`). `src/enemies/monsters.js`: how monsters spawn, take damage, die and behave (abilities, `updateMonsters`).
 - `src/vfx/`, `src/ui/`: feedback and interface.
 - `tools/monster-lab.html`, `tools/weapon-lab.html`: developer pages for viewing monsters and weapons.
 - `scripts/`: the tooling below.
@@ -50,9 +51,9 @@ Gameplay tuning numbers live in `src/config/`, one dependency-free `// @ts-check
 - `weapons.js`: weapon IDs, cadence, charge costs, damage, spread and projectile numbers, including the monsters' water jets.
 - `waves.js`: final wave, count and stagger formulas, clear delay, rewards and the banner copy (`WAVE_SUBS`). Spawn stagger and the next-wave delay are wall-clock `setTimeout` (ms); the clear delay is game time (s).
 - `powerups.js`: `PU_TYPES` and pickup, lifetime, spawn cadence, cap and heal numbers. `PU_TYPES` is re-exported from `src/ui/powerups.js`.
-- `monsters.js`: `MON`, one stats entry per kind, plus the `glow` flag (the kind carries a `makeGlow` anchor; a check in `createMonster` throws if it disagrees with the builder) and `splitsInto` (kinds spawned on death).
+- `monsters.js`: `MON`, one stats entry per kind, plus the `glow` flag (the kind carries a `makeGlow` anchor; a check in `createMonster` in `monsterModel.js` throws if it disagrees with the builder) and `splitsInto` (kinds spawned on death).
 
-Elsewhere: abilities in `src/enemies/monsters.js`, `pickKind` in `src/enemies/waveComposition.js` (which monsters spawn; pure, with `waveCount`, `waveKinds`, `maxAliveByKind` and `maxGlowing`), and `src/core/quality.js`. Shader, material and art constants stay beside the code that uses them.
+Elsewhere: monster visuals and pooling in `src/enemies/monsterModel.js`, abilities in `src/enemies/monsters.js`, `pickKind` in `src/enemies/waveComposition.js` (which monsters spawn; pure, with `waveCount`, `waveKinds`, `maxAliveByKind` and `maxGlowing`), and `src/core/quality.js`. Shader, material and art constants stay beside the code that uses them.
 
 ## Timers
 
@@ -60,5 +61,5 @@ Wave spawn and next-wave timers go through `scheduleTimer` in `src/enemies/waves
 
 ## Rendering rules
 
-- Never add or remove lights during play. Three.js puts the scene's light counts into every lit shader's program key, so a change recompiles the whole scene (a 0.1–2 s freeze). Glowing monsters use `makeGlow` anchors in `src/enemies/monsters.js`, which `src/enemies/monsterLights.js` copies into `MAX_MONSTER_LIGHTS` fixed slots each frame. `MAX_MONSTER_LIGHTS` and `MONSTER_POOL_SIZE` are derived from the wave data (`maxGlowing()` and `maxAliveByKind()` in `src/enemies/waveComposition.js`), so changing the waves or the `glow` flags in `src/config/monsters.js` adjusts them automatically; `npm test` pins today's values.
-- Static parts of new monsters and props (eyes, feet, horns, trim) go through `mergeStaticChildren` in `src/world/staticBatch.js` at the end of their builder, with every animated or later-referenced child passed in `exclude`. Each separate mesh costs a draw call in both the main and shadow passes.
+- Never add or remove lights during play. Three.js puts the scene's light counts into every lit shader's program key, so a change recompiles the whole scene (a 0.1–2 s freeze). Glowing monsters use `makeGlow` anchors in `src/enemies/monsterModel.js`, which `src/enemies/monsterLights.js` copies into `MAX_MONSTER_LIGHTS` fixed slots each frame. `MAX_MONSTER_LIGHTS` and `MONSTER_POOL_SIZE` are derived from the wave data (`maxGlowing()` and `maxAliveByKind()` in `src/enemies/waveComposition.js`), so changing the waves or the `glow` flags in `src/config/monsters.js` adjusts them automatically; `npm test` pins today's values.
+- Static parts of new monsters and props (eyes, feet, horns, trim) go through `mergeStaticChildren` in `src/world/staticBatch.js` at the end of their builder in `monsterModel.js`, with every animated or later-referenced child passed in `exclude`. Each separate mesh costs a draw call in both the main and shadow passes.
