@@ -1,3 +1,4 @@
+// @ts-check
 import * as THREE from "three";
 import { rand, canvasTex } from "../core/utils.js";
 import { scene } from "../core/state.js";
@@ -32,6 +33,20 @@ const points = new THREE.Points(
   }),
 );
 points.frustumCulled = false;
+/**
+ * @typedef {object} Particle
+ * @property {number} life
+ * @property {number} max
+ * @property {number} vx
+ * @property {number} vy
+ * @property {number} vz
+ * @property {number} g gravity
+ * @property {number} r
+ * @property {number} gg
+ * @property {number} b
+ * @property {number} [i] slot in the position and color buffers, set on first spawn
+ */
+/** @type {Particle[]} */
 const parts = [];
 for (let i = 0; i < PMAX; i++) {
   parts.push({ life: 0, max: 1, vx: 0, vy: 0, vz: 0, g: 0, r: 1, gg: 1, b: 1 });
@@ -40,6 +55,15 @@ for (let i = 0; i < PMAX; i++) {
 let pIdx = 0;
 let colorDirty = false;
 const _pCol = new THREE.Color();
+/**
+ * @param {THREE.Vector3} pos
+ * @param {number} n
+ * @param {THREE.ColorRepresentation} color
+ * @param {number} [spd]
+ * @param {number} [life]
+ * @param {number} [grav]
+ * @param {number} [up]
+ */
 function spawnP(pos, n, color, spd = 2.5, life = 0.6, grav = -4, up = 1.8) {
   const c = _pCol.set(color);
   for (let k = 0; k < n; k++) {
@@ -64,6 +88,7 @@ function spawnP(pos, n, color, spd = 2.5, life = 0.6, grav = -4, up = 1.8) {
   }
   colorDirty = true;
 }
+/** @param {number} dt */
 function updateParts(dt) {
   let any = false;
   for (const p of parts) {

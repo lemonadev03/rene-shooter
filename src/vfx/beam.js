@@ -1,3 +1,4 @@
+// @ts-check
 import * as THREE from "three";
 import { scene, camera, state, input } from "../core/state.js";
 import { on } from "../core/events.js";
@@ -72,6 +73,7 @@ export function initBeam() {
   on("shot", ({ weapon }) => { if (weapon === 1) pulse = 1; });
 }
 
+/** @param {THREE.Vector3} point */
 export function setHeatBeamTarget(point) {
   end.copy(point);
   fade = 0.06;
@@ -79,6 +81,7 @@ export function setHeatBeamTarget(point) {
   muzzleLight.intensity = 24 * (0.9 + 0.1 * Math.sin(state.time * 113)) + pulse * 6;
 }
 
+/** @param {number} dt */
 export function updateBeam(dt) {
   material.uniforms.time.value = state.time;
   pulse = Math.max(0, pulse - dt * 22);

@@ -1,7 +1,9 @@
+// @ts-check
 import { on } from "../core/events.js";
 import { beep, noiseHit } from "../core/audio.js";
 import { state } from "../core/state.js";
 
+/** @type {HTMLElement | null} */
 let mark, remaining = 0, duration = 0, killed = false;
 
 function paint() {
@@ -33,6 +35,7 @@ export function initHitmarker() {
   });
 }
 
+/** @param {number} dt */
 export function updateHitmarker(dt) {
   remaining = state.mode === "play" ? Math.max(0, remaining - dt) : 0;
   // damageEnemy's legacy timeouts also touch this element; reassert the current flash each frame.

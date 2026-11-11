@@ -1,3 +1,4 @@
+// @ts-check
 import * as THREE from "three";
 import { camera, state as S, player, look } from "../core/state.js";
 import { ScalarSpring } from "../core/spring.js";
@@ -13,6 +14,7 @@ const roll = new ScalarSpring(0, { stiffness: 900, damping: 60 });
 const punch = new ScalarSpring(0, { stiffness: 3600, damping: 120 });
 let trauma = 0, noiseTime = 0;
 const radians = THREE.MathUtils.degToRad;
+/** @param {number} t @param {number} phase */
 const noise = (t, phase) => (Math.sin(t * 23 + phase) + 0.5 * Math.sin(t * 37 + phase * 2.3)) / 1.5;
 
 on("hurt", ({ dmg }) => { trauma = Math.min(1, trauma + Math.max(0.25, dmg / 40)); });
@@ -21,6 +23,7 @@ on("shot", ({ weapon, aiming }) => {
   punch.value = Math.min(radians(3), punch.value + radians(weapon === 2 ? 1.5 : 0.25) * (aiming ? 0.4 : 1));
 });
 
+/** @param {number} dt @param {boolean} [sprint] */
 export function updateCamera(dt, sprint = false) {
   const eyeHeight = player.sliding > 0 ? 0.95 : 1.65;
   if (dt === 0) {
@@ -58,6 +61,7 @@ export function updateCamera(dt, sprint = false) {
   camera.updateMatrixWorld(true);
 }
 
+/** @param {number} t */
 export function updateTitleCamera(t) {
   const x = Math.sin(t * 0.035) * 18;
   camera.position.set(x, 1.65, shoreZ(x) - 4);
@@ -69,6 +73,7 @@ export function updateTitleCamera(t) {
   camera.updateMatrixWorld(true);
 }
 
+/** @param {THREE.Vector3} vec3 */
 export function aimAt(vec3) {
   updateCamera(0);
   target.copy(vec3).sub(camera.position);
