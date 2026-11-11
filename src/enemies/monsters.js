@@ -691,6 +691,8 @@ export function updateMonsters(dt, t, spitFire) {
         if (e.stateT <= 0) {
           e.state = "tired";
           e.stateT = 0.85;
+          // No melee while the slam recovers; the generic attack below resumes after.
+          e.atkCd = Math.max(e.atkCd, e.stateT);
           e.abCd = rand(3, 4.2);
           S.shake = Math.max(S.shake, 0.5);
           noiseHit(0.3, 0.18, 300);

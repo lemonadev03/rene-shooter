@@ -140,14 +140,24 @@ function shoot(dt) {
   if (firing && !wasFiring) player.fireCd = 0;
   wasFiring = firing;
   if (!firing) return;
+  const rapid = S.pu.rapid > 0,
+    mega = S.pu.power > 0;
+  const cost =
+    S.weapon === WEAPON_HEAT_RAY
+      ? rapid
+        ? HEAT_RAY_COST_RAPID
+        : HEAT_RAY_COST
+      : rapid
+        ? SPONGE_COST_RAPID
+        : SPONGE_COST;
   // Keep the ribbon attached to the current aim between damage ticks.
-  if (S.weapon === WEAPON_HEAT_RAY && player.fireCd > 0 && S.water > 0) {
+  if (S.weapon === WEAPON_HEAT_RAY && player.fireCd > 0 && S.water >= cost) {
     camera.getWorldDirection(_dir).add(_spread).normalize();
     traceHeatRay();
     setHeatBeamTarget(_impact);
   }
   if (player.fireCd > 0) return;
-  if (S.water <= 0) {
+  if (S.water < cost) {
     player.fireCd = EMPTY_CHARGE_COOLDOWN;
     beep(900, 0.06, "square", 0.04);
     $("hint").classList.add("show");
@@ -155,8 +165,6 @@ function shoot(dt) {
   }
   camera.getWorldDirection(_dir);
   getMuzzleWorldPosition(_tip);
-  const rapid = S.pu.rapid > 0,
-    mega = S.pu.power > 0;
   if (S.weapon === WEAPON_HEAT_RAY) {
     const spread = player.aiming ? HEAT_RAY_SPREAD_AIMED : HEAT_RAY_SPREAD_HIP;
     _spread.set(rand(-spread, spread), rand(-spread, spread), rand(-spread, spread));
@@ -168,10 +176,7 @@ function shoot(dt) {
   emit("shot", { weapon: S.weapon, aiming: player.aiming, mega, origin: _tip, dir: _dir });
   if (S.weapon === WEAPON_HEAT_RAY) {
     player.fireCd = rapid ? HEAT_RAY_COOLDOWN_RAPID : HEAT_RAY_COOLDOWN;
-    S.water = Math.max(
-      0,
-      S.water - (rapid ? HEAT_RAY_COST_RAPID : HEAT_RAY_COST),
-    );
+    S.water = Math.max(0, S.water - cost);
     const { enemy, type } = traceHeatRay();
     setHeatBeamTarget(_impact);
     if (type) spawnImpact(type, _impact);
@@ -185,7 +190,7 @@ function shoot(dt) {
   } else {
     // SPONGE BURST: dry sponge cubes that drink monsters dry
     player.fireCd = rapid ? SPONGE_COOLDOWN_RAPID : SPONGE_COOLDOWN;
-    S.water = Math.max(0, S.water - (rapid ? SPONGE_COST_RAPID : SPONGE_COST));
+    S.water = Math.max(0, S.water - cost);
     S.shake = Math.max(S.shake, SPONGE_SHAKE);
     for (let i = 0; i < SPONGE_COUNT; i++) {
       const m = _getMesh(_sPool, spongeGeo, spongeMat);
