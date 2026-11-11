@@ -28,9 +28,13 @@ jobs:
         env:
           SMOKE_GPU: swiftshader
         run: npm run smoke
+      - name: Gameplay regression suite with software WebGL
+        env:
+          E2E_GPU: swiftshader
+        run: npm run e2e
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: smoke-results
+          name: browser-test-results
           path: test-results/
           if-no-files-found: ignore

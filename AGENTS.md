@@ -20,11 +20,14 @@ Use Node 22.13+ or 24+. Run `npm ci`, then `npx playwright install chromium`. On
 - `npm run lint`: ESLint over `src/`, `scripts/` and the inline scripts in the HTML pages. Existing warnings have a per-rule ceiling; new ones fail.
 - `npm run check`: Node syntax checks, matching import maps, local import paths and named exports.
 - `npm run smoke`: loads the game, plays waves 1 and 2, fails on page or console errors and on `#err` text. Defaults to software WebGL (CI); `SMOKE_GPU=metal npm run smoke` uses the Mac GPU.
+- `npm run e2e`: browser regression suite, one named case per fixed gameplay bug (Brute slam jump, empty-charge firing, lethal Gusher end stats, wave banner timing, restart carry-over of the touch-look finger and buffered jump, touch weapon slots) plus the effect-persistence rule (`Heat Ray beam` and `Heat Ray sand scorches` stay in the scene, the beam shows while firing). It runs desktop cases and a mobile-emulated Chromium context (RS-02, RS-06), prints a pass/fail table, keeps going after a failing case, fails on any page or console error, and writes `test-results/e2e.json`. Defaults to software WebGL (about 80 s); `E2E_GPU=metal npm run e2e` takes about 35 s. `E2E_QUALITY` sets the tier (default `low`). Cases drive the game through `window.__game`, the exported `state`/`input`/`look` objects, the game's own module functions and real Playwright input; add a case here for every gameplay bug you fix. CI runs it after smoke.
 - `npm test`: Node's built-in runner over `test/*.test.mjs`. Tests import only `src/config/*` and `src/enemies/waveComposition.js`, which must stay loadable in plain Node (no DOM, no `three`). CI runs it.
 - `npm run typecheck`: `tsc --noEmit` over the files listed in `tsconfig.json` `include`. To opt a file in, add `// @ts-check` and JSDoc types to it, then add it to `include`; CI runs it.
 - `npm run perf [-- --runs 3 --q high --json out.json --url <deployed base URL>]`: plays waves 1 to 5 with a seeded `Math.random` on the Mac GPU and prints frame times and shader program counts per wave. Local only; not part of CI.
 
-Run one browser at a time; every script closes its own. CI runs lint, check, typecheck and smoke (`.github/workflows/checks.yml`).
+Run one browser at a time; every script closes its own. CI runs lint, check, typecheck, test, smoke and e2e (`.github/workflows/checks.yml`).
+
+Manually verified, not in e2e: the hidden-tab pause (wave spawn and next-wave timers freeze while `document.hidden`, `pauseWaveTimers` and `resumeWaveTimers` in `src/enemies/waves.js`). Playwright forces pages visible, so a test needs a patched Playwright with focus emulation off. To re-check, hide the tab for about 12 s mid-wave in a real browser and confirm the pending spawns have not fired when it returns.
 
 ## Debug hooks
 

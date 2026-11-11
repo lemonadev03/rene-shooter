@@ -34,7 +34,7 @@ export default [
     },
   },
   {
-    files: ["scripts/smoke.mjs", "scripts/perf.mjs"],
+    files: ["scripts/smoke.mjs", "scripts/perf.mjs", "scripts/e2e.mjs"],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 ];
