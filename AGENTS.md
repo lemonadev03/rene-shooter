@@ -71,3 +71,13 @@ Wave spawn and next-wave timers go through `scheduleTimer` in `src/enemies/waves
 
 - Never add or remove lights during play. Three.js puts the scene's light counts into every lit shader's program key, so a change recompiles the whole scene (a 0.1–2 s freeze). Glowing monsters use `makeGlow` anchors in `src/enemies/monsterModel.js`, which `src/enemies/monsterLights.js` copies into `MAX_MONSTER_LIGHTS` fixed slots each frame. `MAX_MONSTER_LIGHTS` and `MONSTER_POOL_SIZE` are derived from the wave data (`maxGlowing()` and `maxAliveByKind()` in `src/enemies/waveComposition.js`), so changing the waves or the `glow` flags in `src/config/monsters.js` adjusts them automatically; `npm test` pins today's values.
 - Static parts of new monsters and props (eyes, feet, horns, trim) go through `mergeStaticChildren` in `src/world/staticBatch.js` at the end of their builder in `monsterModel.js`, with every animated or later-referenced child passed in `exclude`. Each separate mesh costs a draw call in both the main and shadow passes.
+
+## Open items
+
+- **Portrait HUD overlap on phones (RS-08).** At about 390 px wide, the weapon name overlaps the HP row and the touch buttons cover the weapon block. This is a layout decision: draw the portrait HUD in Paper and agree it before changing `style.css`.
+- **First hover over Play on a first visit.** With a cold GPU shader cache, the first time the cursor hovers the Play button costs one 83–100 ms frame while its hover transform rasterizes. Pre-painting it on the hidden end screen's button didn't help; pre-painting the real button would flash it during loading.
+- **End-screen transition.** One 33–50 ms frame when the run ends, inside the browser's pointer-unlock and compositor work, not game code.
+- **Startup body-read failures (RS-11).** The cause of the intermittent `Failed to fetch` on a texture body is unconfirmed; `withRetry` in `src/core/assets.js` covers it. The fetch preloads may raise its odds.
+- **`warmDom` copies the end-screen text.** `src/warmup.js` pre-paints the exact loss and win titles from `gameOver` in `src/main.js`; keep the two in sync when that copy changes.
+- **Optimizations not taken:** self-hosting a pinned minified three build (about 135 KB; jsDelivr only minifies on the fly); sharing the three tree GLBs' duplicate textures (about 758 KB and 12 GPU textures, needs the GLBs re-packed); splitting static and dynamic shadow casters, or an MRT normal buffer for GTAO (large, unmeasured); KTX2 textures (would change quality).
+- **Type checking.** `src/core/state.js`, `src/main.js`, `src/enemies/monsters.js`, `src/core/renderer.js` and the world builders are not yet in `tsconfig.json` `include`.
