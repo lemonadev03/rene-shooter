@@ -74,6 +74,7 @@ Wave spawn and next-wave timers go through `scheduleTimer` in `src/enemies/waves
 
 ## Open items
 
+- **First-visit loading stall.** With a cold GPU shader cache, the title screen stops animating for about 6 s during "Optimizing rendering…" (one frozen frame of 5.9 s on the M2, about 8.7 s frozen in total before Play). It is the first compile of the world's lit shaders and Metal pipelines, it predates this work (6.3 s on the original `ca686e9`), and it only happens on a first visit. Fixing it means spreading or hiding that compile, a large change with an uncertain payoff.
 - **Portrait HUD overlap on phones (RS-08).** At about 390 px wide, the weapon name overlaps the HP row and the touch buttons cover the weapon block. This is a layout decision: draw the portrait HUD in Paper and agree it before changing `style.css`.
 - **First hover over Play on a first visit.** With a cold GPU shader cache, the first time the cursor hovers the Play button costs one 83–100 ms frame while its hover transform rasterizes. Pre-painting it on the hidden end screen's button didn't help; pre-painting the real button would flash it during loading.
 - **End-screen transition.** One 33–50 ms frame when the run ends, inside the browser's pointer-unlock and compositor work, not game code.
