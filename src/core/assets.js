@@ -38,10 +38,10 @@ loadingManager.onProgress = (_url, count, size) => {
   total = size;
   updateLoading();
 };
-loadingManager.onError = (url) => {
-  failures.add(url);
-  updateLoading();
-};
+// Loaders call itemError on every failed attempt, including ones the retry wrapper below
+// recovers from, so a single failed request must not latch the error UI. Only a terminal
+// failure does: withRetry's last attempt and trackAssetTask's catch add to `failures`.
+loadingManager.onError = () => {};
 loadingManager.onLoad = () => {
   idle = true;
   if (!failures.size) resolveReady();
@@ -57,11 +57,14 @@ export function markRenderingReady() {
   renderingReady = true;
   updateLoading();
 }
+// Every startup load runs inside one of these groups. The group's open item keeps the manager
+// from going idle (and onLoad from resolving assetsReady) while a retry waits to start.
 export function trackAssetTask(name, task) {
   loadingManager.itemStart(name);
   return Promise.resolve(task)
     .catch((error) => {
-      loadingManager.itemError(name);
+      failures.add(name);
+      updateLoading();
       throw error;
     })
     .finally(() => loadingManager.itemEnd(name));
@@ -92,25 +95,44 @@ const hdrLoader = new HDRLoader(loadingManager);
 const gltfLoader = new GLTFLoader(loadingManager).setMeshoptDecoder(
   MeshoptDecoder,
 );
-export async function loadTexture(
-  url,
-  { colorSpace = THREE.SRGBColorSpace } = {},
-) {
-  let texture;
-  if (bitmapTextures) {
-    texture = new THREE.Texture(await textureLoader.loadAsync(url));
-    // The bitmap is already flipped, so the GPU upload must not flip it again.
-    texture.flipY = false;
-    texture.needsUpdate = true;
-  } else {
-    texture = await textureLoader.loadAsync(url);
+// A transient network error (a response body that fails mid-read, a reset connection) should
+// not end the session: try each load up to three times, waiting 300 ms and then 1 s. The last
+// failure is terminal and is recorded here as well as by the enclosing trackAssetTask.
+const RETRY_DELAYS = [300, 1000];
+async function withRetry(url, load) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await load();
+    } catch (error) {
+      if (attempt >= RETRY_DELAYS.length) {
+        failures.add(url);
+        updateLoading();
+        throw error;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, RETRY_DELAYS[attempt]),
+      );
+    }
   }
-  texture.colorSpace = colorSpace;
-  return texture;
+}
+export function loadTexture(url, { colorSpace = THREE.SRGBColorSpace } = {}) {
+  return withRetry(url, async () => {
+    let texture;
+    if (bitmapTextures) {
+      texture = new THREE.Texture(await textureLoader.loadAsync(url));
+      // The bitmap is already flipped, so the GPU upload must not flip it again.
+      texture.flipY = false;
+      texture.needsUpdate = true;
+    } else {
+      texture = await textureLoader.loadAsync(url);
+    }
+    texture.colorSpace = colorSpace;
+    return texture;
+  });
 }
 export function loadHDR(url) {
-  return hdrLoader.loadAsync(url);
+  return withRetry(url, () => hdrLoader.loadAsync(url));
 }
 export function loadGLTF(url) {
-  return gltfLoader.loadAsync(url);
+  return withRetry(url, () => gltfLoader.loadAsync(url));
 }

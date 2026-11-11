@@ -14,16 +14,36 @@ export function buildSolarSoakerHD({
   const loader = new THREE.TextureLoader();
   const base = String(textureBase).replace(/\/?$/, "/");
   const resources = [];
+  // A failed request is retried (300 ms, then 1 s) onto the same texture. The manager below
+  // stays open across retries, so `ready` settles only once each texture has loaded or failed
+  // for good.
+  const retryDelays = [300, 1000];
   function load(name) {
-    const texture = loader.load(
-      base + name,
-      () => {},
-      undefined,
-      () => {},
-    );
+    const url = base + name;
+    const texture = new THREE.Texture();
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.anisotropy = 8;
     resources.push(texture);
+    loader.manager.itemStart(url);
+    const attempt = (n) =>
+      loader.load(
+        url,
+        (loaded) => {
+          texture.image = loaded.image;
+          texture.needsUpdate = true;
+          loader.manager.itemEnd(url);
+        },
+        undefined,
+        () => {
+          if (n < retryDelays.length) {
+            setTimeout(() => attempt(n + 1), retryDelays[n]);
+          } else {
+            readyReject(new Error(`Weapon texture failed: ${url}`));
+            loader.manager.itemEnd(url);
+          }
+        },
+      );
+    attempt(0);
     return texture;
   }
   // A loading manager supplies an explicit promise for callers wanting a fully textured first frame.
@@ -32,9 +52,7 @@ export function buildSolarSoakerHD({
     readyResolve = resolve;
     readyReject = reject;
   });
-  loader.manager = new THREE.LoadingManager(readyResolve, undefined, (url) =>
-    readyReject(new Error(`Weapon texture failed: ${url}`)),
-  );
+  loader.manager = new THREE.LoadingManager(readyResolve);
   const paintNormal = load("paint-normal.webp");
   const paintGrain = load("paint-grain.webp");
   paintGrain.colorSpace = THREE.SRGBColorSpace;
