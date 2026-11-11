@@ -69,6 +69,11 @@ const _up = new THREE.Vector3(0, 1, 0);
 let coyoteTime = 0;
 let jumpBuffer = 0;
 let slideHeld = false;
+export function resetController() {
+  coyoteTime = 0;
+  jumpBuffer = 0;
+  slideHeld = false;
+}
 function consumeJump() {
   if (jumpBuffer <= 0) return;
   if (player.onGround || coyoteTime > 0) {

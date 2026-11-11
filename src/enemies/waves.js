@@ -26,14 +26,52 @@ function pickKind(n, i) {
   return [1, 3, 6, 2, 7, 4, 5, 0, 3, 6, 1, 2][i % 12]; // everything, often
 }
 
+// Wave timers run on the wall clock, so they are pausable: while the tab is
+// hidden the frame loop stops, and they must stop with it.
+const activeTimers = new Set();
+let timersPaused = false;
+
+function startTimer(timer) {
+  timer.handle = setTimeout(() => {
+    activeTimers.delete(timer);
+    timer.fn();
+  }, timer.remaining);
+  timer.due = performance.now() + timer.remaining;
+}
+function scheduleTimer(fn, delay) {
+  const timer = { fn, remaining: delay, due: 0, handle: null };
+  activeTimers.add(timer);
+  if (!timersPaused) startTimer(timer);
+  return timer;
+}
+function cancelTimer(timer) {
+  clearTimeout(timer.handle);
+  activeTimers.delete(timer);
+}
+export function pauseWaveTimers() {
+  if (timersPaused) return;
+  timersPaused = true;
+  const now = performance.now();
+  for (const timer of activeTimers) {
+    clearTimeout(timer.handle);
+    timer.handle = null;
+    timer.remaining = Math.max(0, timer.due - now);
+  }
+}
+export function resumeWaveTimers() {
+  if (!timersPaused) return;
+  timersPaused = false;
+  for (const timer of activeTimers) startTimer(timer);
+}
+
 export function cancelWaveSpawns() {
-  for (const timer of waveState.spawnTimers) clearTimeout(timer);
+  for (const timer of waveState.spawnTimers) cancelTimer(timer);
   waveState.spawnTimers.clear();
   waveState.pending = 0;
 }
 export function resetWaves() {
   cancelWaveSpawns();
-  clearTimeout(waveState.nextTimer);
+  if (waveState.nextTimer) cancelTimer(waveState.nextTimer);
   waveState.nextTimer = null;
   waveState.clearT = 0;
 }
@@ -46,7 +84,7 @@ export function spawnWave(n) {
   beep(180, 0.25, "sawtooth", 0.07, -80);
   setTimeout(() => beep(240, 0.2, "sawtooth", 0.06, -60), 200);
   for (let i = 0; i < count; i++) {
-    const timer = setTimeout(
+    const timer = scheduleTimer(
       () => {
         waveState.spawnTimers.delete(timer);
         waveState.pending--;
@@ -95,7 +133,7 @@ export function updateWaves(dt, gameOver) {
       S.hp = Math.min(MAX_HP, S.hp + WAVE_CLEAR_HP);
       S.water = Math.min(MAX_CHARGE, S.water + WAVE_CLEAR_CHARGE);
       showBanner("WAVE CLEAR! +❤", "Next wave incoming…");
-      waveState.nextTimer = setTimeout(() => {
+      waveState.nextTimer = scheduleTimer(() => {
         waveState.nextTimer = null;
         if (S.mode === "play") spawnWave(S.wave + 1);
       }, NEXT_WAVE_DELAY_MS);

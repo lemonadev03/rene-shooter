@@ -45,6 +45,10 @@ Gameplay tuning numbers live in `src/config/`, one dependency-free `// @ts-check
 
 Elsewhere: `src/enemies/monsters.js` (`MON` and abilities), `pickKind` in `src/enemies/waves.js` (which monsters spawn), and `src/core/quality.js`. Shader, material and art constants stay beside the code that uses them.
 
+## Timers
+
+Wave spawn and next-wave timers go through `scheduleTimer` in `src/enemies/waves.js`, so `pauseWaveTimers` and `resumeWaveTimers` (called from `visibilitychange` in `src/main.js`) can freeze them while the tab is hidden. New wall-clock timers that drive gameplay should do the same. Reset functions (`resetWaves`, `resetInput`, `resetController`, `hideBanner`) are all called from `startGame`; add new per-run state to them.
+
 ## Rendering rules
 
 - Never add or remove lights during play. Three.js puts the scene's light counts into every lit shader's program key, so a change recompiles the whole scene (a 0.1–2 s freeze). Glowing monsters use `makeGlow` anchors in `src/enemies/monsters.js`, which `src/enemies/monsterLights.js` copies into `MAX_MONSTER_LIGHTS` fixed slots each frame. If a wave can hold more glowing monsters at once, raise that constant.

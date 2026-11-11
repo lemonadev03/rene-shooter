@@ -29,6 +29,11 @@ export function applyLookInput() {
   input.lookY = 0;
 }
 
+// Touch tracking lives at module level so resetInput can release it too.
+let joyId = null;
+let lookId = null;
+let lookLast = { x: 0, y: 0 };
+
 export function resetInput() {
   for (const key in input.keys) delete input.keys[key];
   Object.assign(input, {
@@ -42,6 +47,9 @@ export function resetInput() {
   });
   input.joyVec.x = 0;
   input.joyVec.y = 0;
+  joyId = null;
+  lookId = null;
+  lookLast = { x: 0, y: 0 };
   $("joyStick").style.transform = "translate(-50%,-50%)";
 }
 
@@ -106,9 +114,6 @@ export function initInput({ tryJump, setWeapon }) {
 
   const joy = $("joy");
   const joyStick = $("joyStick");
-  let joyId = null;
-  let lookId = null;
-  let lookLast = { x: 0, y: 0 };
   canvas.addEventListener(
     "touchstart",
     (e) => {
