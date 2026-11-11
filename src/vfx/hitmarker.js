@@ -38,6 +38,6 @@ export function initHitmarker() {
 /** @param {number} dt */
 export function updateHitmarker(dt) {
   remaining = state.mode === "play" ? Math.max(0, remaining - dt) : 0;
-  // damageEnemy's legacy timeouts also touch this element; reassert the current flash each frame.
+  // Every hit and kill emits an event, so this module is the only writer of #hitmark.
   paint();
 }
