@@ -23,6 +23,25 @@ class FilmOutputPass extends OutputPass {
     }
   }
 }
+// The calibration frames draw the weapon so its programs compile and its cost is
+// measured, but they also reach the canvas behind the title. A zero-size scissor
+// keeps the draws and drops every pixel.
+class ViewmodelPass extends RenderPass {
+  hidden = false;
+  render(renderer, writeBuffer, readBuffer, ...args) {
+    if (!this.hidden) {
+      super.render(renderer, writeBuffer, readBuffer, ...args);
+      return;
+    }
+    readBuffer.scissorTest = true;
+    readBuffer.scissor.set(0, 0, 0, 0);
+    try {
+      super.render(renderer, writeBuffer, readBuffer, ...args);
+    } finally {
+      readBuffer.scissorTest = false;
+    }
+  }
+}
 class ScaledAO extends GTAOPass {
   setSize(width, height) {
     const scale = quality.tier === "ultra" ? 0.67 : 0.5;
@@ -70,7 +89,7 @@ export function createPost(renderer) {
   });
   ao.updatePdMaterial({ samples: 8, radius: 6 });
   composer.addPass(ao);
-  const viewmodel = new RenderPass(vmScene, vmCamera);
+  const viewmodel = new ViewmodelPass(vmScene, vmCamera);
   viewmodel.clear = false;
   viewmodel.clearDepth = true;
   composer.addPass(viewmodel);
@@ -110,6 +129,7 @@ export function createPost(renderer) {
   }
   function render(dt) {
     viewmodel.enabled = state.mode === "play" || quality.warmingUp;
+    viewmodel.hidden = state.mode !== "play";
     // The weapon lives in camera space; rotate its IBL back into that same space.
     environmentRotation.copy(camera.quaternion).invert();
     worldRotation.setFromEuler(scene.environmentRotation);

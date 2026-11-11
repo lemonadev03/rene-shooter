@@ -217,8 +217,111 @@ const mouseHold = async (page, down) => {
   }
 };
 
+// Records the lower-right quarter of the canvas, where the weapon sits, after every
+// frame drawn to the canvas while the title loads. With hideWeapon the viewmodel scene
+// is invisible, which gives the same frames without the weapon to compare against.
+const recordLoadingFrames = async (browser, hideWeapon) => {
+  const context = await browser.newContext({
+    viewport: { width: 1000, height: 700 },
+  });
+  try {
+    const page = await context.newPage();
+    watch(page, "loading");
+    await page.addInitScript(seedScript);
+    await page.addInitScript((hideWeapon) => {
+      const frames = [];
+      window.__loadingFrames = frames;
+      let game;
+      Object.defineProperty(window, "__game", {
+        configurable: true,
+        get: () => game,
+        set(value) {
+          game = value;
+          const { renderer, vmScene } = value;
+          if (hideWeapon) vmScene.visible = false;
+          const gl = renderer.getContext();
+          const render = renderer.render.bind(renderer);
+          renderer.render = (...args) => {
+            render(...args);
+            const button = document.getElementById("playBtn");
+            if (renderer.getRenderTarget() !== null) return;
+            if (!button || !button.disabled || frames.length >= 300) return;
+            const width = gl.drawingBufferWidth;
+            const height = gl.drawingBufferHeight;
+            const x = width >> 1;
+            const w = width - x;
+            const h = height >> 1;
+            const pixels = new Uint8Array(w * h * 4);
+            gl.readPixels(x, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+            // Every 8th pixel in both directions is enough to see a weapon.
+            const sample = [];
+            for (let row = 0; row < h; row += 8)
+              for (let column = 0; column < w; column += 8) {
+                const i = (row * w + column) * 4;
+                sample.push(pixels[i], pixels[i + 1], pixels[i + 2]);
+              }
+            frames.push(sample);
+          };
+        },
+      });
+    }, hideWeapon);
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.waitForFunction(
+      () => {
+        const button = document.getElementById("playBtn");
+        return button && !button.disabled && window.__game;
+      },
+      null,
+      { timeout: 120000 },
+    );
+    return await page.evaluate(() => window.__loadingFrames);
+  } finally {
+    await context.close();
+  }
+};
+
 const desktopGroup = async (browser) => {
   const group = "desktop";
+  // RS-10: the calibration frames draw the weapon so its programs compile, but it
+  // must not reach the canvas before Play. Every frame drawn while loading must
+  // match one drawn with the weapon scene hidden.
+  await runCase(
+    group,
+    "RS-10 weapon stays off the canvas before Play",
+    async () => {
+      const withWeapon = await recordLoadingFrames(browser, false);
+      const withoutWeapon = await recordLoadingFrames(browser, true);
+      assert.ok(
+        withWeapon.length >= 8 && withoutWeapon.length >= 8,
+        `too few loading frames: ${withWeapon.length} and ${withoutWeapon.length}`,
+      );
+      const differing = (a, b) => {
+        let count = 0;
+        for (let i = 0; i < a.length; i += 3)
+          if (
+            Math.max(
+              Math.abs(a[i] - b[i]),
+              Math.abs(a[i + 1] - b[i + 1]),
+              Math.abs(a[i + 2] - b[i + 2]),
+            ) > 24
+          )
+            count++;
+        return count / (a.length / 3);
+      };
+      // The best match among the weapon-free frames, so frame counts need not line up.
+      const worst = Math.max(
+        ...withWeapon.map((frame) =>
+          Math.min(...withoutWeapon.map((clean) => differing(frame, clean))),
+        ),
+      );
+      assert.ok(
+        worst < 0.02,
+        `weapon pixels reached the canvas: ${(worst * 100).toFixed(1)}% of the sampled pixels differ`,
+      );
+      return `${withWeapon.length} frames, worst ${(worst * 100).toFixed(2)}% differ`;
+    },
+  );
+
   const context = await browser.newContext({
     viewport: { width: 1000, height: 700 },
   });
