@@ -13,7 +13,10 @@ function batchKey(child) {
     return null;
   }
   if (
-    !(/** @type {THREE.MeshStandardMaterial} */ (material).isMeshStandardMaterial) ||
+    !(
+      /** @type {THREE.MeshStandardMaterial} */ (material)
+        .isMeshStandardMaterial
+    ) ||
     material.transparent
   ) {
     return null;

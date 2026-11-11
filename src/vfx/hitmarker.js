@@ -4,7 +4,10 @@ import { beep, noiseHit } from "../core/audio.js";
 import { state } from "../core/state.js";
 
 /** @type {HTMLElement | null} */
-let mark, remaining = 0, duration = 0, killed = false;
+let mark,
+  remaining = 0,
+  duration = 0,
+  killed = false;
 
 function paint() {
   if (!mark) return;

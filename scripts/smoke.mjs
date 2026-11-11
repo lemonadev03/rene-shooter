@@ -85,7 +85,9 @@ try {
     assert.deepEqual(missingEffects, [], "effects missing from the scene");
     await page.locator("#playBtn").click({ timeout: 30000 });
     await page.evaluate(async () => {
-      window.__smokeWaveState = (await import(new URL("src/core/state.js", location.href).href)).waveState;
+      window.__smokeWaveState = (
+        await import(new URL("src/core/state.js", location.href).href)
+      ).waveState;
       // Survival is not this test's assertion. Avoid a death before clearing waves.
       window.__game.state.hp = 1000000;
     });

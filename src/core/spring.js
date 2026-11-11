@@ -22,12 +22,14 @@ function coefficients(dt, stiffness, damping) {
     c = decay;
     s = dt * decay;
   } else if (discriminant < 0) {
-    const w = Math.sqrt(-discriminant), decay = Math.exp(-a * dt);
+    const w = Math.sqrt(-discriminant),
+      decay = Math.exp(-a * dt);
     c = decay * Math.cos(w * dt);
-    s = decay * Math.sin(w * dt) / w;
+    s = (decay * Math.sin(w * dt)) / w;
   } else {
     const w = Math.sqrt(discriminant);
-    const slow = Math.exp((-a + w) * dt), fast = Math.exp((-a - w) * dt);
+    const slow = Math.exp((-a + w) * dt),
+      fast = Math.exp((-a - w) * dt);
     c = (slow + fast) * 0.5;
     s = (slow - fast) / (2 * w);
   }
@@ -53,7 +55,8 @@ export class ScalarSpring {
   update(dt, target = 0) {
     if (dt <= 0) return this.value;
     const [xx, xv, vx, vv] = coefficients(dt, this.stiffness, this.damping);
-    const offset = this.value - target, velocity = this.velocity;
+    const offset = this.value - target,
+      velocity = this.velocity;
     this.value = target + offset * xx + velocity * xv;
     this.velocity = offset * vx + velocity * vv;
     return this.value;
@@ -85,7 +88,8 @@ export class VectorSpring {
     const [xx, xv, vx, vv] = coefficients(dt, this.stiffness, this.damping);
     for (const axis of /** @type {const} */ (["x", "y", "z"])) {
       const goal = target ? target[axis] : 0;
-      const offset = this.value[axis] - goal, velocity = this.velocity[axis];
+      const offset = this.value[axis] - goal,
+        velocity = this.velocity[axis];
       this.value[axis] = goal + offset * xx + velocity * xv;
       this.velocity[axis] = offset * vx + velocity * vv;
     }

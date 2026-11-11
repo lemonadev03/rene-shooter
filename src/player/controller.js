@@ -188,7 +188,7 @@ export function updatePlayer(dt) {
       wish.lengthSq() > 0
         ? maxSpeed / GROUND_ACCEL_TIME
         : GROUND_STOP_SPEED / GROUND_STOP_TIME;
-    const blend = delta > 0 ? Math.min(1, accel * dt / delta) : 0;
+    const blend = delta > 0 ? Math.min(1, (accel * dt) / delta) : 0;
     player.vel.x += dx * blend;
     player.vel.z += dz * blend;
   } else {
@@ -251,8 +251,7 @@ export function updateSurvival(dt) {
     (s) => Math.hypot(player.pos.x - s.x, player.pos.z - s.z) < s.r,
   );
   const chargeRate = spot
-    ? CHARGE_RATE_SUN_POOL +
-      (input.keys.KeyR ? CHARGE_RATE_SUN_POOL_BOOST : 0)
+    ? CHARGE_RATE_SUN_POOL + (input.keys.KeyR ? CHARGE_RATE_SUN_POOL_BOOST : 0)
     : inOcean
       ? CHARGE_RATE_OCEAN
       : CHARGE_RATE_BEACH;

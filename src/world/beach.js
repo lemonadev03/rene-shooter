@@ -1,14 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import {
-  clamp,
-  rand,
-  V3,
-  mat,
-  box,
-  cyl,
-  sph,
-} from "../core/utils.js";
+import { clamp, rand, V3, mat, box, cyl, sph } from "../core/utils.js";
 import { scene, balls, player, PLAYER_R } from "../core/state.js";
 import { seaZ, bedY } from "./ocean.js";
 import {
@@ -44,7 +36,8 @@ export function initBeach() {
       geo.rotateX(-Math.PI / 2);
       geo.translate(0, 0, (Z0 + Z1) / 2);
       const pa = geo.attributes.position;
-      for (let i = 0; i < pa.count; i++) pa.setY(i, bedY(pa.getX(i), pa.getZ(i)));
+      for (let i = 0; i < pa.count; i++)
+        pa.setY(i, bedY(pa.getX(i), pa.getZ(i)));
       geo.computeVertexNormals();
       const m = new THREE.Mesh(geo, material);
       m.receiveShadow = tinted;
@@ -63,7 +56,13 @@ export function initBeach() {
   } // Beyond z=26, nearly opaque deep water hides the bed's surface detail.
   // The same world-space sand covers low dunes; scanned plants live in scatter.js.
   for (let i = 0; i < 9; i++) {
-    const d = sph(rand(4, 8), surfaces.sand, -55 + i * 13 + rand(-2, 2), -1.5, -46 + rand(-2, 2));
+    const d = sph(
+      rand(4, 8),
+      surfaces.sand,
+      -55 + i * 13 + rand(-2, 2),
+      -1.5,
+      -46 + rand(-2, 2),
+    );
     d.scale.y = 0.38;
     d.castShadow = false;
     d.receiveShadow = true;
@@ -138,15 +137,7 @@ export function initBeach() {
     const g = new THREE.Group();
     g.position.set(PIER.x, 0, PIER.z);
     const wm = surfaces.wood;
-    const deck = box(
-      PIER.w,
-      0.2,
-      PIER.len,
-      surfaces.deck,
-      0,
-      2.52,
-      0,
-    );
+    const deck = box(PIER.w, 0.2, PIER.len, surfaces.deck, 0, 2.52, 0);
     g.add(deck); // planks (one textured slab: cheap to draw)
     // merged wood parts (few draw calls, same look)
     const merge = (parts) => {

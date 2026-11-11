@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { startServer } from "./serve.mjs";
-import {
-  HEAT_RAY_COOLDOWN,
-  SPONGE_COOLDOWN,
-} from "../src/config/weapons.js";
+import { HEAT_RAY_COOLDOWN, SPONGE_COOLDOWN } from "../src/config/weapons.js";
 
 // Regression suite for fixed gameplay bugs. Each case reproduces the original
 // bug and asserts the fixed behavior. The RS-nn ids come from the bug report.
@@ -273,15 +270,30 @@ const desktopGroup = async (browser) => {
     assert.ok(hurts[0].t < 0.6, `slam landed late: ${JSON.stringify(hurts)}`);
     return JSON.stringify(hurts.slice(0, 2));
   });
-  await runCase(group, "RS-01 jumping dodges the slam, melee resumes", async () => {
-    const hurts = await bruteSlam(true);
-    const early = hurts.filter((hurt) => hurt.t < 0.8);
-    assert.deepEqual(early, [], `damage during the slam: ${JSON.stringify(hurts)}`);
-    const resumed = hurts.find((hurt) => hurt.t >= 0.8);
-    assert.equal(resumed?.dmg, 18, `no melee after recovery: ${JSON.stringify(hurts)}`);
-    assert.ok(resumed.t <= 1.8, `melee resumed late: ${JSON.stringify(hurts)}`);
-    return JSON.stringify(hurts.slice(0, 2));
-  });
+  await runCase(
+    group,
+    "RS-01 jumping dodges the slam, melee resumes",
+    async () => {
+      const hurts = await bruteSlam(true);
+      const early = hurts.filter((hurt) => hurt.t < 0.8);
+      assert.deepEqual(
+        early,
+        [],
+        `damage during the slam: ${JSON.stringify(hurts)}`,
+      );
+      const resumed = hurts.find((hurt) => hurt.t >= 0.8);
+      assert.equal(
+        resumed?.dmg,
+        18,
+        `no melee after recovery: ${JSON.stringify(hurts)}`,
+      );
+      assert.ok(
+        resumed.t <= 1.8,
+        `melee resumed late: ${JSON.stringify(hurts)}`,
+      );
+      return JSON.stringify(hurts.slice(0, 2));
+    },
+  );
 
   // RS-03 and the beam: hold the trigger for 2 s of game time.
   const holdFire = async (weapon, water) => {
@@ -345,66 +357,89 @@ const desktopGroup = async (browser) => {
   });
 
   // RS-04: a shot that kills a Gusher inside its blast radius also kills the player.
-  await runCase(group, "RS-04 lethal Gusher kill reaches the end screen", async () => {
-    await page.evaluate(() => {
-      const kit = window.__e2e;
-      kit.fixture();
-      Object.assign(kit.core.state, { hp: 10, score: 0, kills: 0, combo: 0 });
-      const gusher = kit.monsters.addEnemy(4, 0, -8);
-      gusher.hp = 0.1;
-      gusher.speed = 0;
-      gusher.abCd = 99;
-      gusher.state = "chase";
-      window.__game.aimAt(
-        gusher.pos.clone().add({ x: 0, y: 0.7 * gusher.s, z: 0 }),
+  await runCase(
+    group,
+    "RS-04 lethal Gusher kill reaches the end screen",
+    async () => {
+      await page.evaluate(() => {
+        const kit = window.__e2e;
+        kit.fixture();
+        Object.assign(kit.core.state, { hp: 10, score: 0, kills: 0, combo: 0 });
+        const gusher = kit.monsters.addEnemy(4, 0, -8);
+        gusher.hp = 0.1;
+        gusher.speed = 0;
+        gusher.abCd = 99;
+        gusher.state = "chase";
+        window.__game.aimAt(
+          gusher.pos.clone().add({ x: 0, y: 0.7 * gusher.s, z: 0 }),
+        );
+      });
+      await mouseHold(page, true);
+      await page.waitForFunction(
+        () => window.__game.state.mode === "end",
+        null,
+        {
+          timeout: 15000,
+        },
       );
-    });
-    await mouseHold(page, true);
-    await page.waitForFunction(() => window.__game.state.mode === "end", null, {
-      timeout: 15000,
-    });
-    await mouseHold(page, false);
-    const result = await page.evaluate(() => ({
-      score: window.__game.state.score,
-      kills: window.__game.state.kills,
-      shownScore: document.getElementById("stScore").textContent,
-      shownKills: document.getElementById("stKills").textContent,
-    }));
-    assert.ok(result.kills >= 1, `kill not scored: ${JSON.stringify(result)}`);
-    assert.equal(result.shownScore, String(result.score), JSON.stringify(result));
-    assert.equal(result.shownKills, String(result.kills), JSON.stringify(result));
-    return JSON.stringify(result);
-  });
+      await mouseHold(page, false);
+      const result = await page.evaluate(() => ({
+        score: window.__game.state.score,
+        kills: window.__game.state.kills,
+        shownScore: document.getElementById("stScore").textContent,
+        shownKills: document.getElementById("stKills").textContent,
+      }));
+      assert.ok(
+        result.kills >= 1,
+        `kill not scored: ${JSON.stringify(result)}`,
+      );
+      assert.equal(
+        result.shownScore,
+        String(result.score),
+        JSON.stringify(result),
+      );
+      assert.equal(
+        result.shownKills,
+        String(result.kills),
+        JSON.stringify(result),
+      );
+      return JSON.stringify(result);
+    },
+  );
   await startRun(page, "#againBtn");
 
   // RS-07: a jump buffered just before death must not fire on the next run.
-  await runCase(group, "RS-07 buffered jump does not survive a restart", async () => {
-    await page.evaluate(() => {
-      const kit = window.__e2e;
-      for (let i = 0; i < 3; i++) {
-        window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" }));
-        window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" }));
-      }
-      kit.controller.hurtPlayer(1000);
-      kit.maxY = 0;
-      kit.maxJumps = 0;
-      kit.jumpTimer = setInterval(() => {
-        if (window.__game.state.mode !== "play") return;
-        kit.maxY = Math.max(kit.maxY, window.__game.player.pos.y);
-        kit.maxJumps = Math.max(kit.maxJumps, window.__game.player.jumps);
-      }, 5);
-    });
-    await page.waitForFunction(() => window.__game.state.mode === "end");
-    await startRun(page, "#againBtn");
-    await waitGameTime(page, 0.6);
-    const result = await page.evaluate(() => {
-      clearInterval(window.__e2e.jumpTimer);
-      return { maxY: window.__e2e.maxY, maxJumps: window.__e2e.maxJumps };
-    });
-    assert.equal(result.maxJumps, 0, JSON.stringify(result));
-    assert.equal(result.maxY, 0, JSON.stringify(result));
-    return JSON.stringify(result);
-  });
+  await runCase(
+    group,
+    "RS-07 buffered jump does not survive a restart",
+    async () => {
+      await page.evaluate(() => {
+        const kit = window.__e2e;
+        for (let i = 0; i < 3; i++) {
+          window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" }));
+          window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" }));
+        }
+        kit.controller.hurtPlayer(1000);
+        kit.maxY = 0;
+        kit.maxJumps = 0;
+        kit.jumpTimer = setInterval(() => {
+          if (window.__game.state.mode !== "play") return;
+          kit.maxY = Math.max(kit.maxY, window.__game.player.pos.y);
+          kit.maxJumps = Math.max(kit.maxJumps, window.__game.player.jumps);
+        }, 5);
+      });
+      await page.waitForFunction(() => window.__game.state.mode === "end");
+      await startRun(page, "#againBtn");
+      await waitGameTime(page, 0.6);
+      const result = await page.evaluate(() => {
+        clearInterval(window.__e2e.jumpTimer);
+        return { maxY: window.__e2e.maxY, maxJumps: window.__e2e.maxJumps };
+      });
+      assert.equal(result.maxJumps, 0, JSON.stringify(result));
+      assert.equal(result.maxY, 0, JSON.stringify(result));
+      return JSON.stringify(result);
+    },
+  );
 
   // RS-05: the wave banner outlives an older banner's hide timer.
   const bannerVisibleMs = (title) =>
@@ -418,35 +453,43 @@ const desktopGroup = async (browser) => {
       if (hidden < 0) throw new Error(`banner ${title} never hidden`);
       return Math.round(log[hidden].t - log[shown].t);
     }, title);
-  await runCase(group, "RS-05 WAVE 2 banner stays 2.2 s after a clear", async () => {
-    await page.evaluate(() => {
-      const kit = window.__e2e;
-      kit.core.state.hp = 1000000;
-      kit.banner.length = 0;
-      kit.waves.spawnWave(1);
-      window.__game.killAll();
-    });
-    await page.waitForFunction(() => window.__game.state.wave === 2, null, {
-      timeout: 30000,
-    });
-    await page.waitForTimeout(3200);
-    const ms = await bannerVisibleMs("WAVE 2");
-    assert.ok(ms >= 2150 && ms <= 3500, `WAVE 2 visible for ${ms} ms`);
-    return `${ms} ms`;
-  });
-  await runCase(group, "RS-05 restart mid-banner keeps the new WAVE 1", async () => {
-    await page.evaluate(() => window.__e2e.fixture());
-    await dieAndRestart(page);
-    await page.waitForTimeout(700);
-    await page.evaluate(() => {
-      window.__e2e.banner.length = 0;
-    });
-    await dieAndRestart(page);
-    await page.waitForTimeout(3200);
-    const ms = await bannerVisibleMs("WAVE 1");
-    assert.ok(ms >= 2150 && ms <= 3500, `WAVE 1 visible for ${ms} ms`);
-    return `${ms} ms`;
-  });
+  await runCase(
+    group,
+    "RS-05 WAVE 2 banner stays 2.2 s after a clear",
+    async () => {
+      await page.evaluate(() => {
+        const kit = window.__e2e;
+        kit.core.state.hp = 1000000;
+        kit.banner.length = 0;
+        kit.waves.spawnWave(1);
+        window.__game.killAll();
+      });
+      await page.waitForFunction(() => window.__game.state.wave === 2, null, {
+        timeout: 30000,
+      });
+      await page.waitForTimeout(3200);
+      const ms = await bannerVisibleMs("WAVE 2");
+      assert.ok(ms >= 2150 && ms <= 3500, `WAVE 2 visible for ${ms} ms`);
+      return `${ms} ms`;
+    },
+  );
+  await runCase(
+    group,
+    "RS-05 restart mid-banner keeps the new WAVE 1",
+    async () => {
+      await page.evaluate(() => window.__e2e.fixture());
+      await dieAndRestart(page);
+      await page.waitForTimeout(700);
+      await page.evaluate(() => {
+        window.__e2e.banner.length = 0;
+      });
+      await dieAndRestart(page);
+      await page.waitForTimeout(3200);
+      const ms = await bannerVisibleMs("WAVE 1");
+      assert.ok(ms >= 2150 && ms <= 3500, `WAVE 1 visible for ${ms} ms`);
+      return `${ms} ms`;
+    },
+  );
 
   await context.close();
 };
@@ -513,41 +556,44 @@ const mobileGroup = async (browser) => {
   });
 
   // RS-06: a look finger still down across a restart must not block new gestures.
-  await runCase(group, "RS-06 new look gesture works after a restart", async () => {
-    await page.evaluate(() => window.__e2e.fixture());
-    const cdp = await context.newCDPSession(page);
-    const touch = (type, points) =>
-      cdp.send("Input.dispatchTouchEvent", {
-        type,
-        touchPoints: points.map(([id, x, y]) => ({ id, x, y })),
-      });
-    await touch("touchStart", [[31, 700, 300]]);
-    await touch("touchMove", [[31, 740, 310]]);
-    await page.evaluate(() => window.__e2e.controller.hurtPlayer(1000));
-    await page.waitForFunction(() => window.__game.state.mode === "end");
-    // The old finger stays down while the player restarts with a click.
-    await page.locator("#againBtn").click();
-    await page.waitForFunction(() => window.__game.state.mode === "play");
-    const look = () =>
-      page.evaluate(() => ({ ...window.__e2e.core.look }));
-    const before = await look();
-    await touch("touchStart", [
-      [31, 740, 310],
-      [32, 700, 300],
-    ]);
-    await touch("touchMove", [
-      [31, 740, 310],
-      [32, 780, 340],
-    ]);
-    await waitGameTime(page, 0.3);
-    const after = await look();
-    await touch("touchEnd", []);
-    assert.ok(
-      after.yaw !== before.yaw || after.pitch !== before.pitch,
-      `camera did not move: ${JSON.stringify({ before, after })}`,
-    );
-    return JSON.stringify({ before, after });
-  });
+  await runCase(
+    group,
+    "RS-06 new look gesture works after a restart",
+    async () => {
+      await page.evaluate(() => window.__e2e.fixture());
+      const cdp = await context.newCDPSession(page);
+      const touch = (type, points) =>
+        cdp.send("Input.dispatchTouchEvent", {
+          type,
+          touchPoints: points.map(([id, x, y]) => ({ id, x, y })),
+        });
+      await touch("touchStart", [[31, 700, 300]]);
+      await touch("touchMove", [[31, 740, 310]]);
+      await page.evaluate(() => window.__e2e.controller.hurtPlayer(1000));
+      await page.waitForFunction(() => window.__game.state.mode === "end");
+      // The old finger stays down while the player restarts with a click.
+      await page.locator("#againBtn").click();
+      await page.waitForFunction(() => window.__game.state.mode === "play");
+      const look = () => page.evaluate(() => ({ ...window.__e2e.core.look }));
+      const before = await look();
+      await touch("touchStart", [
+        [31, 740, 310],
+        [32, 700, 300],
+      ]);
+      await touch("touchMove", [
+        [31, 740, 310],
+        [32, 780, 340],
+      ]);
+      await waitGameTime(page, 0.3);
+      const after = await look();
+      await touch("touchEnd", []);
+      assert.ok(
+        after.yaw !== before.yaw || after.pitch !== before.pitch,
+        `camera did not move: ${JSON.stringify({ before, after })}`,
+      );
+      return JSON.stringify({ before, after });
+    },
+  );
 
   await context.close();
 };
@@ -598,7 +644,8 @@ try {
       report.failedRequests.length ===
     0;
   const failed = report.cases.filter((entry) => entry.result === "fail");
-  report.result = !report.error && clean && failed.length === 0 ? "pass" : "fail";
+  report.result =
+    !report.error && clean && failed.length === 0 ? "pass" : "fail";
   if (report.result === "fail") process.exitCode = 1;
   report.totalMs = Math.round(performance.now() - started);
   printTable();

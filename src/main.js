@@ -11,7 +11,11 @@ import {
   lifecycle,
 } from "./core/state.js";
 import { renderer, renderFrame, initializeRendering } from "./core/renderer.js";
-import { assetsReady, finishAssetRegistration, markRenderingReady } from "./core/assets.js";
+import {
+  assetsReady,
+  finishAssetRegistration,
+  markRenderingReady,
+} from "./core/assets.js";
 import { quality } from "./core/quality.js";
 import {
   initInput,

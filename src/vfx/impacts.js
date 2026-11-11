@@ -8,7 +8,9 @@ const ages = new Float32Array(MAX).fill(6);
 const centers = Array.from({ length: MAX }, () => new THREE.Vector3());
 const geometry = new THREE.PlaneGeometry(1, 1);
 geometry.rotateX(-Math.PI / 2);
-const ageAttribute = new THREE.InstancedBufferAttribute(ages, 1).setUsage(THREE.DynamicDrawUsage);
+const ageAttribute = new THREE.InstancedBufferAttribute(ages, 1).setUsage(
+  THREE.DynamicDrawUsage,
+);
 geometry.setAttribute("age", ageAttribute);
 const material = new THREE.ShaderMaterial({
   vertexShader: `attribute float age; varying vec2 vUv; varying float vAge;
@@ -37,7 +39,8 @@ marks.visible = false;
 marks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 const matrix = new THREE.Matrix4();
 const lastPuff = { sand: -Infinity, monster: -Infinity, prop: -Infinity };
-let next = 0, lastMark = -Infinity;
+let next = 0,
+  lastMark = -Infinity;
 
 export { marks as scorchMarksMesh };
 
@@ -52,7 +55,8 @@ export function spawnImpact(type, pos) {
   if (state.time - lastPuff[type] >= 0.075) {
     lastPuff[type] = state.time;
     if (type === "sand") spawnP(pos, 5, 0xe4c28c, 0.65, 0.48, -2, 1.1);
-    else if (type === "monster") spawnP(pos, 5, 0xfff9ed, 0.28, 0.65, 0.45, 1.1);
+    else if (type === "monster")
+      spawnP(pos, 5, 0xfff9ed, 0.28, 0.65, 0.45, 1.1);
     else spawnP(pos, 4, 0xffc34d, 2.7, 0.24, -5, 2.0);
   }
   if (type !== "sand") return;
