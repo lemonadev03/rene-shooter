@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { $, clamp, rand } from "../core/utils.js";
+import { clamp, rand } from "../core/utils.js";
 import {
   scene,
   state as S,
@@ -121,22 +121,12 @@ function damageEnemy(e, dmg, hitPos) {
       _v3.y += 0.8;
       spawnP(_v3, 18, 0x9ca3af, 3, 0.6, -3, 2.5);
     }
-    if (dmg <= 0) {
-      $("hitmark").style.opacity = 1;
-      setTimeout(() => ($("hitmark").style.opacity = 0), 60);
-      return;
-    }
+    if (dmg <= 0) return;
   }
   e.hp -= dmg;
   e.wet = 1;
   spawnP(hitPos, 7, 0x7dd3fc, 2.2, 0.45, -5, 2);
   spawnP(hitPos, 5, 0xffffff, 1.2, 0.7, 1.5, 2); // splash + steam
-  $("hitmark").style.opacity = 1;
-  $("hitmark").style.transform = "translate(-50%,-50%) scale(1.25)";
-  setTimeout(() => {
-    $("hitmark").style.opacity = 0;
-    $("hitmark").style.transform = "translate(-50%,-50%) scale(1)";
-  }, 70);
   noiseHit(0.09, 0.05, 3000);
   if (e.hp <= 0) killEnemy(e, true);
 }
