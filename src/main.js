@@ -56,7 +56,13 @@ import { initBeam, updateBeam } from "./vfx/beam.js";
 import { initImpacts, updateImpacts } from "./vfx/impacts.js";
 import { initHitmarker, updateHitmarker } from "./vfx/hitmarker.js";
 import { PU_TYPES, updatePowerups, releasePowerup } from "./ui/powerups.js";
-import { updateHud, setWeapon, initShares, hideBanner } from "./ui/hud.js";
+import {
+  updateHud,
+  setWeapon,
+  initShares,
+  initWeaponSlots,
+  hideBanner,
+} from "./ui/hud.js";
 import { stageWarmup, warmDom } from "./warmup.js";
 import {
   MAX_HP,
@@ -155,6 +161,7 @@ initHitmarker();
 lifecycle.gameOver = gameOver;
 initInput({ tryJump, setWeapon });
 initShares();
+initWeaponSlots(setWeapon);
 $("playBtn").addEventListener("click", startGame);
 $("againBtn").addEventListener("click", startGame);
 // The frame loop stops while the tab is hidden, so wave timers stop with it.
