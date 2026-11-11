@@ -52,11 +52,37 @@ export function trackAssetTask(name, task) {
   }).finally(() => loadingManager.itemEnd(name));
 }
 
-const textureLoader = new THREE.TextureLoader(loadingManager);
+// Decode textures off the main thread where createImageBitmap honors the options that
+// keep pixels identical to TextureLoader's (flipped on decode, straight alpha, no
+// color conversion). Older Safari and Firefox keep TextureLoader, as GLTFLoader does.
+function supportsBitmapTextures() {
+  if (typeof createImageBitmap === "undefined") return false;
+  const userAgent = navigator.userAgent;
+  const safari = /^((?!chrome|android).)*safari/i.test(userAgent);
+  const safariVersion = Number(userAgent.match(/Version\/(\d+)/)?.[1] ?? 0);
+  const firefoxVersion = Number(userAgent.match(/Firefox\/(\d+)/)?.[1] ?? Infinity);
+  return !(safari && safariVersion < 17) && firefoxVersion >= 98;
+}
+const bitmapTextures = supportsBitmapTextures();
+const textureLoader = bitmapTextures
+  ? new THREE.ImageBitmapLoader(loadingManager).setOptions({
+    imageOrientation: "flipY",
+    premultiplyAlpha: "none",
+    colorSpaceConversion: "none",
+  })
+  : new THREE.TextureLoader(loadingManager);
 const hdrLoader = new HDRLoader(loadingManager);
 const gltfLoader = new GLTFLoader(loadingManager).setMeshoptDecoder(MeshoptDecoder);
 export async function loadTexture(url, { colorSpace = THREE.SRGBColorSpace } = {}) {
-  const texture = await textureLoader.loadAsync(url);
+  let texture;
+  if (bitmapTextures) {
+    texture = new THREE.Texture(await textureLoader.loadAsync(url));
+    // The bitmap is already flipped, so the GPU upload must not flip it again.
+    texture.flipY = false;
+    texture.needsUpdate = true;
+  } else {
+    texture = await textureLoader.loadAsync(url);
+  }
   texture.colorSpace = colorSpace;
   return texture;
 }

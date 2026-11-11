@@ -49,6 +49,95 @@
 {"@context":"https://schema.org","@type":"VideoGame","name":"RENE SHOOTER — Beach Soak Showdown","url":"https://lemonadev03.github.io/rene-shooter/","image":"https://lemonadev03.github.io/rene-shooter/assets/og-art2.jpg","description":"A Fortnite-style first-person beach shooter that runs in the browser. Play as Rene (#2 in Ateneo blue) with the Solar Soaker heat blaster, evaporate waves of water monsters, collect powerups (Rapid Ray, Mega Heat, Speed Soda, Salt Storm), and recharge the solar gun in drifting sun pools (plain sunshine trickle-charges it; saltwater shorts it out).","genre":["Shooter","First-person shooter","Browser game"],"gamePlatform":["Web browser","PC","Mobile"],"applicationCategory":"Game","operatingSystem":"Any (WebGL)","playMode":"SinglePlayer","inLanguage":"en","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"lemonadev03","url":"https://github.com/lemonadev03"}}
 </script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"}}</script>
+<script id="fetch-preloads" type="application/json">
+[
+ "assets/beach/boulder_01.glb",
+ "assets/beach/coast_rocks_02.glb",
+ "assets/beach/coast_rocks_05.glb",
+ "assets/beach/coast_sand_01_arm.webp",
+ "assets/beach/coast_sand_01_diff.webp",
+ "assets/beach/coast_sand_01_nor_gl.webp",
+ "assets/beach/damp_beach_sand_arm.webp",
+ "assets/beach/damp_beach_sand_diff.webp",
+ "assets/beach/damp_beach_sand_nor_gl.webp",
+ "assets/beach/fern_02.glb",
+ "assets/beach/grass_bermuda_01.glb",
+ "assets/beach/island_tree_01.glb",
+ "assets/beach/island_tree_02.glb",
+ "assets/beach/island_tree_03.glb",
+ "assets/beach/lambis_shell.glb",
+ "assets/beach/sand_rocks_small_01.glb",
+ "assets/beach/weathered_planks_arm.webp",
+ "assets/beach/weathered_planks_diff.webp",
+ "assets/beach/weathered_planks_nor_gl.webp",
+ "assets/beach/wood_planks_arm.webp",
+ "assets/beach/wood_planks_diff.webp",
+ "assets/beach/wood_planks_nor_gl.webp",
+ "assets/hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr",
+ "assets/hdri/kloofendal_48d_partly_cloudy_puresky_2k.hdr"
+]
+</script>
+<script>
+// loadHDR, loadGLTF and loadTexture use fetch(). WebKit downloads a fetch preload a second time
+// instead of reusing it, so Safari and iOS browsers skip these; the others start them now.
+if (!/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
+  for (const href of JSON.parse(document.getElementById("fetch-preloads").textContent)) {
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "fetch";
+    link.crossOrigin = "anonymous";
+    link.href = href;
+    document.head.append(link);
+  }
+}
+</script>
+<link rel="modulepreload" href="src/config/player.js">
+<link rel="modulepreload" href="src/config/powerups.js">
+<link rel="modulepreload" href="src/config/session.js">
+<link rel="modulepreload" href="src/config/waves.js">
+<link rel="modulepreload" href="src/config/weapons.js">
+<link rel="modulepreload" href="src/core/assets.js">
+<link rel="modulepreload" href="src/core/audio.js">
+<link rel="modulepreload" href="src/core/collision.js">
+<link rel="modulepreload" href="src/core/events.js">
+<link rel="modulepreload" href="src/core/input.js">
+<link rel="modulepreload" href="src/core/post.js">
+<link rel="modulepreload" href="src/core/quality.js">
+<link rel="modulepreload" href="src/core/renderer.js">
+<link rel="modulepreload" href="src/core/spring.js">
+<link rel="modulepreload" href="src/core/state.js">
+<link rel="modulepreload" href="src/core/utils.js">
+<link rel="modulepreload" href="src/enemies/monsterLights.js">
+<link rel="modulepreload" href="src/enemies/monsters.js">
+<link rel="modulepreload" href="src/enemies/waves.js">
+<link rel="modulepreload" href="src/main.js">
+<link rel="modulepreload" href="src/player/controller.js">
+<link rel="modulepreload" href="src/player/fpcamera.js">
+<link rel="modulepreload" href="src/ui/hud.js">
+<link rel="modulepreload" href="src/ui/powerups.js">
+<link rel="modulepreload" href="src/vfx/beam.js">
+<link rel="modulepreload" href="src/vfx/hitmarker.js">
+<link rel="modulepreload" href="src/vfx/impacts.js">
+<link rel="modulepreload" href="src/vfx/labels.js">
+<link rel="modulepreload" href="src/vfx/particles.js">
+<link rel="modulepreload" href="src/warmup.js">
+<link rel="modulepreload" href="src/weapons/projectiles.js">
+<link rel="modulepreload" href="src/weapons/solarSoakerHD.js">
+<link rel="modulepreload" href="src/weapons/viewmodel.js">
+<link rel="modulepreload" href="src/world/beach-materials.js">
+<link rel="modulepreload" href="src/world/beach.js">
+<link rel="modulepreload" href="src/world/ocean.js">
+<link rel="modulepreload" href="src/world/pier.js">
+<link rel="modulepreload" href="src/world/pools.js">
+<link rel="modulepreload" href="src/world/scatter.js">
+<link rel="modulepreload" href="src/world/sky.js">
+<link rel="modulepreload" href="src/world/staticBatch.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.core.js" crossorigin>
+<link rel="preload" as="image" href="assets/weapons/solar-soaker/paint-grain.webp" crossorigin>
+<link rel="preload" as="image" href="assets/weapons/solar-soaker/paint-normal.webp" crossorigin>
+<link rel="preload" as="image" href="assets/weapons/solar-soaker/paint-roughness.webp" crossorigin>
+<link rel="preload" as="image" href="assets/weapons/solar-soaker/steel-normal.webp" crossorigin>
+<link rel="preload" as="image" href="assets/weapons/solar-soaker/steel-roughness.webp" crossorigin>
 </head>
 <body>
 <div id="app"><canvas id="c"></canvas></div>

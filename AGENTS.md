@@ -26,6 +26,13 @@ Use Node 22.13+ or 24+. Run `npm ci`, then `npx playwright install chromium`. On
 
 Run one browser at a time; every script closes its own. CI runs lint, check, typecheck and smoke (`.github/workflows/checks.yml`).
 
+## Startup preloads
+
+`index.html` lists a `<link rel="modulepreload">` for every local module reachable from `src/main.js`, plus the pinned `three.core.js`, and a preload for every startup asset (HDRs, GLBs, beach and weapon textures). The browser then fetches all of it at once instead of discovering modules one import level at a time. `npm run check` fails when a preload is missing, points at a missing or unreachable file, or has no loader that requests it. When you add a module or a startup asset, add its preload.
+
+- Assets loaded with `fetch` (`loadHDR`, `loadGLTF`, and `loadTexture` through `ImageBitmapLoader`) are listed in the `fetch-preloads` JSON block in `index.html`; an inline script turns each into `as="fetch" crossorigin` outside WebKit, which downloads a fetch preload a second time instead of reusing it. Assets loaded with `THREE.TextureLoader` (the weapon textures) are static `<link rel="preload" as="image" crossorigin>` links. A mismatched destination or mode makes the browser download the file twice.
+- `loadTexture` decodes off the main thread with `ImageBitmapLoader` (`imageOrientation: "flipY"`, `premultiplyAlpha: "none"`, `colorSpaceConversion: "none"`) and keeps `TextureLoader` on engines without those options (Safari before 17, Firefox before 98).
+
 ## Debug hooks
 
 - `window.__game`: `renderer`, `scene`, `camera`, `state`, `player`, `enemies`, `quality`, `killAll`, `aimAt`. Tests and benchmarks drive the game through it.
