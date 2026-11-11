@@ -77,6 +77,18 @@ function initShares() {
   });
 }
 
+// the first two slots are the real weapons; tapping one selects it
+function initWeaponSlots(select) {
+  document.querySelectorAll(".slot").forEach((el, i) => {
+    if (i > 1) return;
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (S.mode === "play") select(i + 1);
+    });
+  });
+}
+
 // last value written per element property, so unchanged values skip the DOM write
 const _last = {};
 function setText(key, v) {
@@ -111,4 +123,12 @@ export function updateHud(frame, expectedAlive, powerupTypes) {
     if (act.length) setText("power", act.join("  ·  "));
   }
 }
-export { EL, showBanner, hideBanner, feed, setWeapon, initShares };
+export {
+  EL,
+  showBanner,
+  hideBanner,
+  feed,
+  setWeapon,
+  initShares,
+  initWeaponSlots,
+};
