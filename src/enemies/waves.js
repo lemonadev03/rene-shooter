@@ -1,7 +1,8 @@
 import { state as S, enemies, waveState } from "../core/state.js";
 import { rand } from "../core/utils.js";
 import { beep } from "../core/audio.js";
-import { addEnemy, killEnemy, releaseMonster } from "./monsters.js";
+import { addEnemy, killEnemy } from "./monsters.js";
+import { releaseMonster } from "./monsterModel.js";
 import { showBanner } from "../ui/hud.js";
 import { pickKind, waveCount } from "./waveComposition.js";
 import { MAX_HP, MAX_CHARGE } from "../config/session.js";
