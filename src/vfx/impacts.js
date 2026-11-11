@@ -1,3 +1,4 @@
+// @ts-check
 import * as THREE from "three";
 import { scene, state } from "../core/state.js";
 import { spawnP } from "./particles.js";
@@ -46,6 +47,7 @@ export function initImpacts() {
   scene.add(marks);
 }
 
+/** @param {"sand" | "monster" | "prop"} type @param {THREE.Vector3} pos */
 export function spawnImpact(type, pos) {
   if (state.time - lastPuff[type] >= 0.075) {
     lastPuff[type] = state.time;
@@ -77,6 +79,7 @@ export function spawnImpact(type, pos) {
   marks.visible = true;
 }
 
+/** @param {number} dt */
 export function updateImpacts(dt) {
   let active = false;
   for (let i = 0; i < MAX; i++) {

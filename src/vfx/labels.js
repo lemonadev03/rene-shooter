@@ -1,6 +1,8 @@
+// @ts-check
 import * as THREE from "three";
 import { canvasTex } from "../core/utils.js";
 
+/** @param {string} main @param {string} [sub] @param {number} [scale] */
 export function makeLabel(main, sub = "", scale = 1) {
   const tex = canvasTex(512, 160, (g, w, h) => {
     g.clearRect(0, 0, w, h);

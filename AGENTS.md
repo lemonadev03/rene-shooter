@@ -21,7 +21,7 @@ Use Node 22.13+ or 24+. Run `npm ci`, then `npx playwright install chromium`. On
 - `npm run check`: Node syntax checks, matching import maps, local import paths and named exports.
 - `npm run smoke`: loads the game, plays waves 1 and 2, fails on page or console errors and on `#err` text. Defaults to software WebGL (CI); `SMOKE_GPU=metal npm run smoke` uses the Mac GPU.
 - `npm test`: Node's built-in runner over `test/*.test.mjs`. Tests import only `src/config/*` and `src/enemies/waveComposition.js`, which must stay loadable in plain Node (no DOM, no `three`). CI runs it.
-- `npm run typecheck`: `tsc --noEmit` over the files listed in `tsconfig.json` `include`. To opt a file in, add `// @ts-check` and JSDoc types to it, then add it to `include`; CI runs it.
+- `npm run typecheck`: `tsc --noEmit` over the files listed in `tsconfig.json` `include`. To opt a file in, add `// @ts-check` and JSDoc types to it, then add it to `include`; CI runs it. `three` and `three/addons/*` types come from `@types/three`, pinned to the same version as the import map in `index.html` and mapped in `tsconfig.json` `paths`. When bumping three, bump the import map in both lab pages and `@types/three` together.
 - `npm run perf [-- --runs 3 --q high --json out.json --url <deployed base URL>]`: plays waves 1 to 5 with a seeded `Math.random` on the Mac GPU and prints frame times and shader program counts per wave. Local only; not part of CI.
 
 Run one browser at a time; every script closes its own. CI runs lint, check, typecheck and smoke (`.github/workflows/checks.yml`).

@@ -1,3 +1,4 @@
+// @ts-check
 import * as THREE from "three";
 import { clamp } from "./utils.js";
 import { colliders } from "./state.js";
@@ -5,10 +6,40 @@ import { colliders } from "./state.js";
 // colliders (all in world XZ; y0/y1 = vertical extent, used by bullets):
 //   circle {t:0,x,z,r} · capsule/segment {t:1,x,z,x2,z2,r} · oriented box {t:2,x,z,hx,hz,cs,sn}
 // bo:true = bullets/water jets only (upper trunk etc.), never blocks walkers
+/**
+ * @typedef {object} SegmentCollider circle (t 0, x2/z2 = x/z) or capsule (t 1)
+ * @property {0 | 1} t
+ * @property {number} x
+ * @property {number} z
+ * @property {number} x2
+ * @property {number} z2
+ * @property {number} r
+ * @property {number} y0
+ * @property {number} y1
+ * @property {boolean} [bo]
+ */
+/**
+ * @typedef {object} BoxCollider oriented box (t 2); cs/sn are the cosine and sine of its rotation
+ * @property {2} t
+ * @property {number} x
+ * @property {number} z
+ * @property {number} hx
+ * @property {number} hz
+ * @property {number} cs
+ * @property {number} sn
+ * @property {number} r
+ * @property {number} y0
+ * @property {number} y1
+ * @property {boolean} [bo]
+ */
+/** @typedef {SegmentCollider | BoxCollider} Collider */
+/** @param {number} x @param {number} z @param {number} r @param {number} [y1] @param {number} [y0] */
 const addCircle = (x, z, r, y1 = 2, y0 = 0) =>
   colliders.push({ t: 0, x, z, x2: x, z2: z, r, y0, y1 });
+/** @param {number} x @param {number} z @param {number} x2 @param {number} z2 @param {number} r @param {number} [y1] @param {number} [y0] @param {boolean} [bo] */
 const addSeg = (x, z, x2, z2, r, y1 = 2, y0 = 0, bo = false) =>
   colliders.push({ t: 1, x, z, x2, z2, r, y0, y1, bo });
+/** @param {number} x @param {number} z @param {number} hx @param {number} hz @param {number} rot @param {number} [y1] @param {number} [y0] */
 const addBox = (x, z, hx, hz, rot, y1 = 2, y0 = 0) =>
   colliders.push({
     t: 2,
@@ -25,6 +56,7 @@ const addBox = (x, z, hx, hz, rot, y1 = 2, y0 = 0) =>
 // does a disc (px,pz,rad) overlap collider c? if so _cx/_cz = the disc centre pushed just clear
 let _cx = 0,
   _cz = 0;
+/** @param {Collider} c @param {number} px @param {number} pz @param {number} rad */
 function _push(c, px, pz, rad) {
   if (c.t === 2) {
     const dx = px - c.x,
@@ -75,6 +107,11 @@ function _push(c, px, pz, rad) {
   return true;
 }
 // one shared push-out for the player, enemies and balls. nrm (optional {x,z}) receives the summed push direction.
+/**
+ * @param {{ x: number, z: number }} pos
+ * @param {number} rad
+ * @param {{ x: number, z: number }} [nrm]
+ */
 function resolveCollision(pos, rad, nrm) {
   let hit = false;
   if (nrm) {
@@ -108,6 +145,7 @@ function resolveCollision(pos, rad, nrm) {
 }
 // does a projectile of radius rad hit a solid prop anywhere along (x0,y0,z0)->(x1,y1,z1)? hit point -> _hitP
 const _hitP = new THREE.Vector3();
+/** @param {number} x0 @param {number} y0 @param {number} z0 @param {number} x1 @param {number} y1 @param {number} z1 @param {number} rad */
 function projectileHitsSolid(x0, y0, z0, x1, y1, z1, rad) {
   const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 0.3));
   for (let s = 1; s <= n; s++) {

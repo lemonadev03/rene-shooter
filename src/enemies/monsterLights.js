@@ -1,3 +1,4 @@
+// @ts-check
 import * as THREE from "three";
 import { scene, camera, enemies } from "../core/state.js";
 import { maxGlowing } from "./waveComposition.js";
@@ -7,7 +8,9 @@ import { maxGlowing } from "./waveComposition.js";
 // point-light count into every lit shader's program key, so these slots are always
 // in the scene (idle ones at intensity 0) and the count never changes.
 export const MAX_MONSTER_LIGHTS = maxGlowing();
+/** @type {THREE.PointLight[]} */
 const slots = [];
+/** @type {THREE.Object3D[]} */
 const lit = [];
 const _v3 = new THREE.Vector3();
 
@@ -20,6 +23,7 @@ export function initMonsterLights() {
   }
 }
 
+/** @param {THREE.Object3D} glow */
 function glowDistance(glow) {
   glow.getWorldPosition(_v3);
   return _v3.distanceToSquared(camera.position);
