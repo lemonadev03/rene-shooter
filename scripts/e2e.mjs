@@ -598,6 +598,94 @@ const mobileGroup = async (browser) => {
   await context.close();
 };
 
+// Startup asset failures. Each case boots a fresh page and aborts requests for the sand
+// diffuse texture. The aborts are deliberate, so these pages report their own errors instead
+// of through `watch`, which would count them as suite failures.
+const startupGroup = async (browser) => {
+  const group = "startup";
+  const sand = "/assets/beach/coast_sand_01_diff.webp";
+  const bootWithAborts = async (shouldAbort) => {
+    const context = await browser.newContext({
+      viewport: { width: 1000, height: 700 },
+    });
+    const page = await context.newPage();
+    const pageErrors = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    let requests = 0;
+    await page.route(`**${sand}`, (route) => {
+      requests++;
+      return shouldAbort(requests) ? route.abort("failed") : route.continue();
+    });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    return { context, page, pageErrors, requests: () => requests };
+  };
+  const status = (page) =>
+    page.evaluate(() => ({
+      disabled: document.getElementById("playBtn").disabled,
+      progress: document.getElementById("loadingProgress").textContent,
+      err: document.getElementById("err").textContent,
+    }));
+
+  await runCase(
+    group,
+    "RS-11 one failed texture request is retried and Play enables",
+    async () => {
+      const boot = await bootWithAborts((n) => n === 1);
+      try {
+        await boot.page.waitForFunction(
+          () => {
+            const button = document.getElementById("playBtn");
+            return button && !button.disabled && window.__game;
+          },
+          null,
+          { timeout: 120000 },
+        );
+        const after = await status(boot.page);
+        assert.equal(after.err, "", "#err shows text");
+        assert.ok(!/could not load/.test(after.progress), after.progress);
+        assert.deepEqual(boot.pageErrors, [], "page errors");
+        assert.ok(
+          boot.requests() >= 2,
+          "the texture was never requested again",
+        );
+        return `${boot.requests()} requests`;
+      } finally {
+        await boot.context.close();
+      }
+    },
+  );
+
+  await runCase(
+    group,
+    "RS-11 a texture that never loads shows the error and keeps Play disabled",
+    async () => {
+      const boot = await bootWithAborts(() => true);
+      try {
+        await boot.page.waitForFunction(
+          () =>
+            /could not load/.test(
+              document.getElementById("loadingProgress").textContent,
+            ),
+          null,
+          { timeout: 60000 },
+        );
+        // Let any late load settle; the failure must not clear itself.
+        await boot.page.waitForTimeout(2000);
+        const after = await status(boot.page);
+        assert.ok(after.disabled, "Play is enabled");
+        assert.match(
+          after.progress,
+          /An asset could not load\. Reload to retry\./,
+        );
+        assert.equal(boot.requests() >= 3, true, `${boot.requests()} requests`);
+        return `${boot.requests()} requests`;
+      } finally {
+        await boot.context.close();
+      }
+    },
+  );
+};
+
 const printTable = () => {
   const width = Math.max(...report.cases.map((c) => c.name.length));
   console.log("\nResult  Case");
@@ -622,6 +710,7 @@ try {
     (async () => {
       await desktopGroup(browser);
       await mobileGroup(browser);
+      await startupGroup(browser);
     })(),
     new Promise((_, reject) => {
       deadline = setTimeout(
