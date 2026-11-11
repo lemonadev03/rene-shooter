@@ -94,5 +94,26 @@ export function createPost(renderer) {
     vmScene.environmentRotation.setFromQuaternion(environmentRotation.multiply(worldRotation));
     composer.render(dt);
   }
-  return { composer, resize, render };
+  async function warmVariants() {
+    // Only the GTAO pass draws the normal G-buffer; low and medium never do.
+    if (!ao.enabled) return;
+    const target = renderer.getRenderTarget();
+    const materials = [];
+    // compileAsync does not honor scene.overrideMaterial. Give it the actual
+    // G-buffer material for every mesh so geometry/order cannot hide a variant.
+    scene.traverse((object) => {
+      if (!object.isMesh) return;
+      materials.push([object, object.material]);
+      object.material = ao.normalMaterial;
+    });
+    try {
+      renderer.setRenderTarget(ao.normalRenderTarget);
+      await renderer.compileAsync(scene, camera);
+    } finally {
+      for (const [object, material] of materials) object.material = material;
+      ao.normalMaterial.needsUpdate = true;
+      renderer.setRenderTarget(target);
+    }
+  }
+  return { composer, resize, render, warmVariants };
 }

@@ -1,5 +1,6 @@
 import { $ } from "./core/utils.js";
 import { scene } from "./core/state.js";
+import { quality } from "./core/quality.js";
 import {
   MONSTER_POOL_SIZE,
   acquireMonster,
@@ -60,6 +61,14 @@ export function stageWarmup() {
   }
   // The beam and scorch marks live in the scene for the whole game (never culled, hidden
   // until first use), so they are only shown here, not staged: unstaging removes objects.
+  // r187 does not invalidate a shared material on vertex-normal presence alone.
+  // Make the real G-buffer draw select the beam's no-normal program explicitly.
+  const beamBeforeRender = heatBeamMesh.onBeforeRender;
+  heatBeamMesh.onBeforeRender = function (...args) {
+    beamBeforeRender.apply(this, args);
+    const material = args[4];
+    if (material.isMeshNormalMaterial) material.needsUpdate = true;
+  };
   const effects = [heatBeamMesh, scorchMarksMesh];
   const hidden = effects.map((mesh) => mesh.visible);
   for (const mesh of effects) mesh.visible = true;
@@ -79,6 +88,7 @@ export function stageWarmup() {
       mesh.position.y = 0;
       mesh.frustumCulled = true;
     }
+    heatBeamMesh.onBeforeRender = beamBeforeRender;
     effects.forEach((mesh, i) => {
       mesh.visible = hidden[i];
     });
@@ -90,6 +100,28 @@ export function stageWarmup() {
 
 const nextFrame = () => new Promise(requestAnimationFrame);
 
+// Consecutive on-time frames that count as a settled compositor.
+const SETTLE_FRAMES = 12;
+// Loading never waits longer than this for the compositor, so a slow machine still
+// reaches Play.
+const SETTLE_LIMIT_MS = 4000;
+
+// rAF callbacks alone can run ahead of queued compositor raster/Metal pipeline
+// creation. Keep loading until the compositor has delivered a stable tail, or until
+// the deadline passes. A frame is on time when it is within 1.5 display intervals,
+// so a 30 Hz display settles too.
+async function settleDom(deadline) {
+  const onTime = Math.max(25, 1.5 * quality.measuredIntervalMs);
+  let stable = 0;
+  let previous = performance.now();
+  do {
+    await nextFrame();
+    const now = performance.now();
+    stable = now - previous < onTime ? stable + 1 : 0;
+    previous = now;
+  } while (stable < SETTLE_FRAMES && previous < deadline);
+}
+
 // Every emoji and symbol the HUD, banner, kill feed and end screen can show. A glyph
 // that has never been drawn costs the browser over 100 ms the first time on a cold
 // cache, which would land in the middle of wave 1.
@@ -99,6 +131,10 @@ const UI_GLYPHS = "⚡ ☀️ ❤️ 👟 🧂 🏄 💦 🐚 🌧️ 🏖️ �
 // blur and text shaders. On a cold shader cache that blocks the GPU process for over
 // half a second, so paint each of them once at near-zero opacity while loading.
 export async function warmDom() {
+  const deadline = performance.now() + SETTLE_LIMIT_MS;
+  // updateHud's first score formatting lazily initializes ICU/Intl (~13-30 ms).
+  // Prime the identical default-locale path without changing the score or HUD.
+  (0).toLocaleString();
   const restores = [];
   const reveal = (id, apply) => {
     const el = $(id);
@@ -136,7 +172,10 @@ export async function warmDom() {
     el.textContent = UI_GLYPHS;
   });
   reveal("endTitle", (el) => {
-    el.textContent = UI_GLYPHS;
+    el.textContent = "WIPED OUT! 🌊";
+  });
+  reveal("endSub", (el) => {
+    el.textContent = "The water monsters got you. Towel off and run it back.";
   });
   reveal("hitmark", (el) => {
     el.style.opacity = "1";
@@ -152,9 +191,12 @@ export async function warmDom() {
   const feedItem = document.createElement("div");
   feedItem.textContent = UI_GLYPHS;
   $("killFeed").prepend(feedItem);
-  await nextFrame();
-  await nextFrame();
-  await nextFrame();
+  // Paint exact end-screen content, including its final-size emoji/text runs.
+  await settleDom(deadline);
+  $("endTitle").textContent = "BEACH SAVED! 🏆";
+  $("endSub").textContent = "Every water monster evaporated. Ateneo #2 does it again.";
+  await settleDom(deadline);
   feedItem.remove();
   for (const restore of restores) restore();
+  await settleDom(deadline);
 }

@@ -16,6 +16,9 @@ const { values: options } = parseArgs({
 const runs = Number(options.runs);
 const WAVES = 5;
 const MIN_WAVE_MS = 9000;
+// How long the play and end rows keep counting after the Play click and the end screen.
+const PLAY_TAIL_MS = 3000;
+const END_TAIL_MS = 2000;
 const args = ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"];
 
 // Seeded Math.random keeps world generation and the play start comparable.
@@ -32,11 +35,14 @@ function installSeed() {
   document.addEventListener(
     "click",
     (event) => {
-      if (event.target.id === "playBtn") seed = 0x76543210;
+      if (event.target.id === "playBtn") {
+        seed = 0x76543210;
+        window.__perf.clickMs = performance.now();
+      }
     },
     true,
   );
-  window.__perf = { frames: [], last: 0, readyMs: 0 };
+  window.__perf = { frames: [], last: 0, readyMs: 0, clickMs: 0, clearMs: 0, endMs: 0 };
   new MutationObserver(() => {
     const button = document.getElementById("playBtn");
     if (button && !button.disabled && !window.__perf.readyMs)
@@ -51,9 +57,12 @@ function installSeed() {
     const perf = window.__perf;
     if (game) {
       if (game.state.mode === "play") game.state.hp = 1000000;
-      if (perf.last && game.state.mode === "play")
+      if (game.state.mode === "end" && !perf.endMs) perf.endMs = now;
+      if (perf.last && perf.readyMs)
         perf.frames.push({
+          t: now,
           dt: now - perf.last,
+          mode: game.state.mode,
           wave: game.state.wave,
           programs: game.renderer.info.programs.length,
         });
@@ -69,6 +78,25 @@ const median = (list) => {
   return sorted[Math.floor((sorted.length - 1) / 2)];
 };
 const quantile = (sorted, p) => sorted[Math.floor((sorted.length - 1) * p)];
+
+function describe(frames) {
+  const dts = frames.map((frame) => frame.dt).sort((a, b) => a - b);
+  return {
+    frames: dts.length,
+    median: quantile(dts, 0.5),
+    p99: quantile(dts, 0.99),
+    max: quantile(dts, 1),
+    over33: dts.filter((dt) => dt > 33).length,
+    // 50.1 avoids counting a float-rounded 50 ms interval as a hitch.
+    over50: dts.filter((dt) => dt > 50.1).length,
+    programsStart: frames[0]?.programs,
+    programsEnd: frames.at(-1)?.programs,
+    // Frames over 50 ms, for the --json output only.
+    slow: frames
+      .filter((frame) => frame.dt > 50.1)
+      .map(({ t, dt, mode, wave }) => ({ t, dt, mode, wave })),
+  };
+}
 
 async function runOnce(origin) {
   const browser = await chromium.launch({
@@ -102,7 +130,14 @@ async function runOnce(origin) {
         );
       })(),
     }));
-    await page.click("#playBtn");
+    // A real first visit hovers the button before clicking it.
+    await page.waitForTimeout(500);
+    const box = await page.locator("#playBtn").boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.waitForTimeout(1000);
+    await page.mouse.click(x, y);
     await page.evaluate(async () => {
       window.__perfWaveState = (await import(new URL("src/core/state.js", location.href).href)).waveState;
     });
@@ -118,26 +153,42 @@ async function runOnce(origin) {
         null,
         { timeout: 60000 },
       );
+      if (wave === WAVES) {
+        await page.evaluate(() => {
+          window.__perf.clearMs = performance.now();
+        });
+      }
       await page.evaluate(() => window.__game.killAll());
     }
-    const frames = await page.evaluate(() => window.__perf.frames);
+    await page.waitForFunction(() => window.__perf.endMs, null, {
+      timeout: 60000,
+    });
+    await page.waitForTimeout(END_TAIL_MS + 100);
+    const { frames, readyMs, clickMs, clearMs, endMs } = await page.evaluate(
+      () => window.__perf,
+    );
     run.waves = [];
     for (let wave = 1; wave <= WAVES; wave++) {
-      const inWave = frames.filter((frame) => frame.wave === wave);
-      const dts = inWave.map((frame) => frame.dt).sort((a, b) => a - b);
       run.waves.push({
         wave,
-        frames: dts.length,
-        median: quantile(dts, 0.5),
-        p99: quantile(dts, 0.99),
-        max: quantile(dts, 1),
-        over33: dts.filter((dt) => dt > 33).length,
-        // 50.1 avoids counting a float-rounded 50 ms interval as a hitch.
-        over50: dts.filter((dt) => dt > 50.1).length,
-        programsStart: inWave[0]?.programs,
-        programsEnd: inWave.at(-1)?.programs,
+        ...describe(
+          frames.filter((frame) => frame.mode === "play" && frame.wave === wave),
+        ),
       });
     }
+    // Play: from Play enabled through the first seconds of wave 1.
+    run.marks = { readyMs, clickMs, clearMs, endMs };
+    run.play = describe(
+      frames.filter(
+        (frame) => frame.t >= readyMs && frame.t <= clickMs + PLAY_TAIL_MS,
+      ),
+    );
+    // End: from the wave 5 clear through the end screen's first seconds.
+    run.end = describe(
+      frames.filter(
+        (frame) => frame.t >= clearMs && frame.t <= endMs + END_TAIL_MS,
+      ),
+    );
     if (errors.length) throw new Error(`Page errors: ${errors.join("; ")}`);
     return run;
   } finally {
@@ -157,25 +208,31 @@ try {
   await server?.close();
 }
 
+function summarize(select, head) {
+  const pick = (key) => median(results.map((run) => select(run)[key]));
+  return {
+    ...head,
+    frames: pick("frames"),
+    median: pick("median"),
+    p99: pick("p99"),
+    max: pick("max"),
+    over33: pick("over33"),
+    over50: pick("over50"),
+    programsStart: pick("programsStart"),
+    programsEnd: pick("programsEnd"),
+  };
+}
+
 const summary = {
   quality: options.q,
   runs,
   renderer: results[0].renderer,
   readyMs: median(results.map((run) => run.readyMs)),
-  waves: results[0].waves.map((_, index) => {
-    const pick = (key) => median(results.map((run) => run.waves[index][key]));
-    return {
-      wave: index + 1,
-      frames: pick("frames"),
-      median: pick("median"),
-      p99: pick("p99"),
-      max: pick("max"),
-      over33: pick("over33"),
-      over50: pick("over50"),
-      programsStart: pick("programsStart"),
-      programsEnd: pick("programsEnd"),
-    };
-  }),
+  waves: results[0].waves.map((_, index) =>
+    summarize((run) => run.waves[index], { wave: index + 1 }),
+  ),
+  play: summarize((run) => run.play, { wave: "play" }),
+  end: summarize((run) => run.end, { wave: "end" }),
 };
 console.log(
   `\n${summary.renderer}, q=${summary.quality}, median of ${runs} run(s)`,
@@ -183,11 +240,11 @@ console.log(
 console.log(`Load until Play enabled: ${Math.round(summary.readyMs)} ms\n`);
 const fixed = (value) => value.toFixed(1).padStart(8);
 console.log(
-  "Wave  Frames  Median ms    p99 ms    Max ms  >33 ms  >50 ms  Programs",
+  "Row   Frames  Median ms    p99 ms    Max ms  >33 ms  >50 ms  Programs",
 );
-for (const w of summary.waves)
+for (const w of [...summary.waves, summary.play, summary.end])
   console.log(
-    `${String(w.wave).padStart(4)}${String(w.frames).padStart(8)}${fixed(w.median)}  ${fixed(w.p99)}  ${fixed(w.max)}${String(w.over33).padStart(8)}${String(w.over50).padStart(8)}  ${w.programsStart} -> ${w.programsEnd}`,
+    `${String(w.wave).padEnd(4)}${String(w.frames).padStart(8)}${fixed(w.median)}  ${fixed(w.p99)}  ${fixed(w.max)}${String(w.over33).padStart(8)}${String(w.over50).padStart(8)}  ${w.programsStart} -> ${w.programsEnd}`,
   );
 if (options.json) {
   await mkdir(path.dirname(path.resolve(options.json)), { recursive: true });

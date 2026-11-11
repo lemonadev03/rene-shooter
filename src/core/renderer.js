@@ -1,6 +1,6 @@
 import { $ } from "./utils.js";
 import * as THREE from "three";
-import { scene, camera } from "./state.js";
+import { scene, camera, state } from "./state.js";
 import { vmCamera } from "../weapons/viewmodel.js";
 import { configureShadows } from "../world/sky.js";
 import { createPost } from "./post.js";
@@ -23,6 +23,8 @@ let scale = 1;
 let samples = [];
 let sampleTime = 0;
 let comfortableTime = 0;
+let overloadedTime = 0;
+let lastMode = state.mode;
 let debugTime = 0;
 let debugFrames = 0;
 let lastFrameTime;
@@ -80,7 +82,13 @@ export async function initializeRendering({ stage } = {}) {
   // Stage every object that first appears during play, compile its programs, and run
   // the real passes (shadow, GTAO, post) over it so nothing compiles mid-wave.
   const unstage = stage?.();
+  // The world is rendered into a linear HDR target, not directly to the SRGB
+  // canvas. Compile unseen scenery in the same color-space variant as play.
+  const previousTarget = renderer.getRenderTarget();
+  renderer.setRenderTarget(post.composer.readBuffer);
   await renderer.compileAsync(scene, camera);
+  renderer.setRenderTarget(previousTarget);
+  await post.warmVariants();
   post.render(0);
   await completeGPUFrame();
   post.render(0);
@@ -92,26 +100,37 @@ export async function initializeRendering({ stage } = {}) {
 }
 
 function adaptResolution(frameMs) {
+  if (state.mode !== lastMode) {
+    lastMode = state.mode;
+    samples = [];
+    sampleTime = comfortableTime = overloadedTime = 0;
+    return;
+  }
   samples.push(frameMs);
   sampleTime += frameMs;
   while (samples.length > 1 && sampleTime - samples[0] >= 500) sampleTime -= samples.shift();
   if (sampleTime < 500) return;
   const average = sampleTime / samples.length;
   if (average > quality.targetFrameMs * 1.15 && scale > 0.5) {
+    // A single DOM/input stall occupies the rolling window for 500 ms. Require
+    // sustained overload beyond that window before reallocating every target.
+    overloadedTime += frameMs;
+    if (overloadedTime < 500) return;
     setScale(scale * 0.9);
     samples = [];
-    sampleTime = comfortableTime = 0;
+    sampleTime = comfortableTime = overloadedTime = 0;
   } else if (average < quality.targetFrameMs * 0.95 ||
     // At vsync, frame intervals cannot fall below the display interval. Submission
     // headroom plus stable pacing lets resolution recover on those displays too.
     (average <= quality.targetFrameMs * 1.03 && renderCostMs < quality.targetFrameMs * 0.5)) {
+    overloadedTime = 0;
     comfortableTime += frameMs;
     if (comfortableTime >= 3000 && scale < qualityCap()) {
       setScale(scale * 1.05);
       samples = [];
       sampleTime = comfortableTime = 0;
     }
-  } else comfortableTime = 0;
+  } else comfortableTime = overloadedTime = 0;
 }
 
 export function renderFrame(dt) {
