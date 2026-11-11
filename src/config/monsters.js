@@ -20,7 +20,7 @@
  * @property {number[]} [splitsInto] Kind IDs spawned when it dies.
  */
 
-// 0 imp · 1 brute(slam) · 2 spitter · 3 dasher · 4 exploder · 5 splitter · 6 shielded · 7 healer
+// 0 Droplet · 1 Tide Brute (slam) · 2 Jetter · 3 Surfer · 4 Gusher · 5 Puddler · 6 Coral Warden · 7 Rain Shaman
 /** @type {MonsterDef[]} */
 export const MON = [
   {

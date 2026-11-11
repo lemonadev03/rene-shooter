@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { clamp, rand, mat, box, sph } from "../core/utils.js";
-import { scene, refillSpots } from "../core/state.js";
+import { scene, sunPoolSpots } from "../core/state.js";
 import { mergeStaticChildren } from "./staticBatch.js";
 import { makeLabel } from "../vfx/labels.js";
 const beaconAnims = []; // {mat,sprite,baseY,ring,phase}
@@ -151,7 +151,7 @@ function buildPool(x, z, accent) {
     scale: 0.95,
   });
   const spot = { x, z, r: 3.2, kind: "sun" };
-  refillSpots.push(spot);
+  sunPoolSpots.push(spot);
   pools.push({
     g,
     spot,

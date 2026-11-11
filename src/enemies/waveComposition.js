@@ -15,10 +15,10 @@ import {
  * @returns {number}
  */
 export function pickKind(n, i) {
-  if (n === 1) return i % 4 === 3 ? 3 : 0; // imps + dashers
-  if (n === 2) return [0, 3, 0, 4, 0, 1][i % 6]; // + boomers, first brute
-  if (n === 3) return [0, 2, 3, 5, 0, 4, 1, 2][i % 8]; // + spitters, splitters
-  if (n === 4) return [6, 0, 7, 3, 2, 5, 1, 4, 0, 6][i % 10]; // + wardens, shamans
+  if (n === 1) return i % 4 === 3 ? 3 : 0; // Droplets + Surfers
+  if (n === 2) return [0, 3, 0, 4, 0, 1][i % 6]; // + Gushers, first Tide Brute
+  if (n === 3) return [0, 2, 3, 5, 0, 4, 1, 2][i % 8]; // + Jetters, Puddlers
+  if (n === 4) return [6, 0, 7, 3, 2, 5, 1, 4, 0, 6][i % 10]; // + Coral Wardens, Rain Shamans
   return [1, 3, 6, 2, 7, 4, 5, 0, 3, 6, 1, 2][i % 12]; // everything, often
 }
 

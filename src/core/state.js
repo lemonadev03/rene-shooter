@@ -65,10 +65,10 @@ export const camera = new THREE.PerspectiveCamera(
 );
 export const enemies = [];
 export const bullets = [];
-export const fireballs = [];
+export const waterJets = [];
 export const colliders = [];
 export const balls = [];
-export const refillSpots = [];
+export const sunPoolSpots = [];
 export const powerups = [];
 export const waveState = {
   clearT: 0,
