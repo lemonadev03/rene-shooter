@@ -8,7 +8,19 @@ function createContext() {
 // suspended under autoplay rules until ac() resumes it on the Play click.
 function initAudio() {
   try {
-    createContext();
+    const a = createContext();
+    // Build the synth graph and its standard wave tables while loading. It is
+    // never connected to the destination, so this cannot emit a warm-up sound.
+    const g = a.createGain();
+    for (const type of ["square", "sawtooth"]) {
+      const o = a.createOscillator();
+      o.type = type;
+      o.connect(g);
+      o.start(0);
+      o.stop(0);
+      o.disconnect();
+    }
+    g.disconnect();
   } catch (e) {}
 }
 function ac() {
