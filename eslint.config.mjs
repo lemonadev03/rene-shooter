@@ -26,7 +26,7 @@ export default [
     },
   },
   {
-    files: ["scripts/**/*.mjs", "eslint.config.mjs"],
+    files: ["scripts/**/*.mjs", "test/**/*.mjs", "eslint.config.mjs"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
