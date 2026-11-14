@@ -78,14 +78,27 @@ function createMonster(kind) {
   }
   return { g, creature, hpBar, s, glow, fx, casters };
 }
-// On the low tier the spray/wet shader meshes and the shadow pass over the
-// sculpted bodies are the difference between playable and not on weak GPUs
-// (and on software WebGL in CI), so creatures there keep body, armor and HP
-// bar only. Applied on every acquire, since the tier can change mid-run.
+// On the low tier the spray/wet shader meshes, the shadow pass over the
+// sculpted bodies and the transmission pass (a second full scene render per
+// frame) are the difference between playable and not on weak GPUs (and on
+// software WebGL in CI), so creatures there keep an opaque tinted body,
+// armor and HP bar only. Applied on every acquire, since the tier can
+// change mid-run; the shared water material is only reprogrammed when the
+// tier side actually flips.
+let waterLow = null;
 function applyTier(m) {
   const low = quality.tier === "low";
   for (const node of m.fx) node.visible = !low;
   for (const node of m.casters) node.castShadow = !low;
+  if (waterLow !== low) {
+    waterLow = low;
+    const water = m.casters[0]?.material;
+    if (water?.isMeshPhysicalMaterial) {
+      water.transmission = low ? 0 : 1;
+      water.color.setHex(low ? 0x63c7bd : 0xf3fff9);
+      water.needsUpdate = true;
+    }
+  }
 }
 // Pooled monsters keep their materials and geometry for good: disposing them would
 // release compiled programs and bring back mid-play compiles. A monster's own state
