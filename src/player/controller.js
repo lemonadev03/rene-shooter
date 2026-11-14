@@ -58,7 +58,7 @@ import { updateBalls } from "../world/beach.js";
 import { PIER } from "../world/pier.js";
 import { inSea } from "../world/ocean.js";
 import { spawnP } from "../vfx/particles.js";
-import { beep } from "../core/audio.js";
+import { beep, stepSound } from "../core/audio.js";
 import { EL, feed } from "../ui/hud.js";
 import { emit } from "../core/events.js";
 const _v3 = new THREE.Vector3();
@@ -69,10 +69,12 @@ const _up = new THREE.Vector3(0, 1, 0);
 let coyoteTime = 0;
 let jumpBuffer = 0;
 let slideHeld = false;
+let strideLeft = 0;
 export function resetController() {
   coyoteTime = 0;
   jumpBuffer = 0;
   slideHeld = false;
+  strideLeft = 0;
 }
 function consumeJump() {
   if (jumpBuffer <= 0) return;
@@ -240,6 +242,14 @@ export function updatePlayer(dt) {
   resolveCollision(player.pos, PLAYER_R);
   updateBalls(dt);
   player.speedNow = Math.hypot(player.vel.x, player.vel.z);
+  // Footsteps: one per stride while grounded and moving, wet in the sea.
+  if (player.onGround && player.speedNow > 0.8 && S.mode === "play") {
+    strideLeft -= player.speedNow * dt;
+    if (strideLeft <= 0) {
+      strideLeft = 2.1;
+      stepSound(inSea(player.pos.x, player.pos.z));
+    }
+  } else strideLeft = 0;
 
   player.yaw = look.yaw;
   return sprint;

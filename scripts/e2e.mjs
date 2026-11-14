@@ -629,6 +629,138 @@ const desktopGroup = async (browser) => {
     },
   );
 
+  // Recorded audio (last on this page: it takes a minute, and the shared
+  // page keeps simulating meanwhile, which must not perturb earlier cases).
+  // With clip requests stalled, every sound call must play
+  // the synth fallback without error; once released, every recorded sound
+  // must load and play, ambience must start, and sustained Heat Ray fire
+  // must never exceed the per-sound voice caps.
+  await runCase(
+    group,
+    "recorded audio fallback, loading and voice caps",
+    async () => {
+      const context = await browser.newContext({
+        viewport: { width: 1000, height: 700 },
+      });
+      try {
+        const stalled = await context.newPage();
+        watch(stalled, group);
+        await stalled.addInitScript(seedScript);
+        let releaseClips;
+        const gate = new Promise((resolve) => (releaseClips = resolve));
+        await context.route("**/assets/audio/**", async (route) => {
+          await gate;
+          await route.continue().catch(() => {});
+        });
+        await bootPage(stalled, false);
+        await startRun(stalled, "#playBtn");
+        const SIGNATURES = [
+          // one entry per beep/noiseHit call-site pattern in src/
+          ["beep", [1750, 0.025, "sine", 0.035, -550]],
+          ["beep", [740, 0.1, "triangle", 0.07, 640]],
+          ["beep", [900, 0.06, "square", 0.04]],
+          ["beep", [220, 0.1, "sine", 0.05, -100]],
+          ["beep", [320, 0.14, "sawtooth", 0.035, -160]],
+          ["beep", [500, 0.25, "sine", 0.08, -350]],
+          ["beep", [600, 0.18, "sine", 0.07, 500]],
+          ["beep", [880, 0.08, "square", 0.03]],
+          ["beep", [1100, 0.05, "square", 0.04]],
+          ["beep", [240, 0.12, "sawtooth", 0.05, 300]],
+          ["beep", [140, 0.2, "sawtooth", 0.06, 60]],
+          ["beep", [140, 0.2, "sawtooth", 0.09, -60]],
+          ["beep", [980, 0.12, "sine", 0.04, 220]],
+          ["beep", [300, 0.1, "sine", 0.05, 200]],
+          ["beep", [420, 0.1, "sine", 0.05, 200]],
+          ["beep", [200, 0.15, "sine", 0.04, -80]],
+          ["beep", [900, 0.05, "sine", 0.02]],
+          ["beep", [220, 0.12, "sine", 0.035, -60]],
+          ["beep", [180, 0.25, "sawtooth", 0.07, -80]],
+          ["beep", [500, 0.08, "square", 0.05]],
+          ["beep", [350, 0.08, "square", 0.05]],
+          ["beep", [660, 0.09, "square", 0.06]],
+          ["noiseHit", [0.035, 0.025, 1500]],
+          ["noiseHit", [0.16, 0.08, 700]],
+          ["noiseHit", [0.045, 0.035, 1800]],
+          ["noiseHit", [0.35, 0.2, 900]],
+          ["noiseHit", [0.3, 0.14, 1200]],
+          ["noiseHit", [0.07, 0.07, 900]],
+          ["noiseHit", [0.09, 0.05, 3000]],
+          ["noiseHit", [0.3, 0.18, 300]],
+        ];
+        const before = await stalled.evaluate(async (signatures) => {
+          const audio = await import(
+            new URL("src/core/audio.js", location.href).href
+          );
+          for (const [fn, sig] of signatures) audio[fn](...sig);
+          audio.stepSound(false);
+          audio.stepSound(true);
+          const debug = audio.audioDebug();
+          return { loaded: debug.loaded.length, ambienceOn: debug.ambienceOn };
+        }, SIGNATURES);
+        assert.equal(before.loaded, 0, "clips loaded while requests stalled");
+        assert.equal(before.ambienceOn, false);
+        releaseClips();
+        for (let i = 0; ; i++) {
+          const debug = await stalled.evaluate(async () => {
+            const audio = await import(
+              new URL("src/core/audio.js", location.href).href
+            );
+            const d = audio.audioDebug();
+            return { loaded: d.loaded.length, ambienceOn: d.ambienceOn };
+          });
+          if (debug.loaded >= 23 && debug.ambienceOn) break;
+          assert.ok(i < 120, `clips never loaded: ${JSON.stringify(debug)}`);
+          await stalled.waitForTimeout(500);
+        }
+        const after = await stalled.evaluate(async (signatures) => {
+          const audio = await import(
+            new URL("src/core/audio.js", location.href).href
+          );
+          for (const [fn, sig] of signatures) audio[fn](...sig);
+          const debug = audio.audioDebug();
+          const silent = [];
+          for (const name of debug.sounds) {
+            if (name === "ambSurf" || name === "ambWind") continue;
+            // Wait for a free voice, then the recorded buffer must play.
+            let played = false;
+            for (let i = 0; i < 40 && !played; i++) {
+              played = audio.playSound(name);
+              if (!played)
+                await new Promise((resolve) => setTimeout(resolve, 150));
+            }
+            if (!played) silent.push(name);
+          }
+          // Sustained fire: 60 synchronous Heat Ray shots must respect caps.
+          for (let i = 0; i < 60; i++) audio.noiseHit(0.035, 0.025, 1500);
+          const peak = audio.audioDebug();
+          return {
+            loaded: peak.loaded.length,
+            ambienceOn: peak.ambienceOn,
+            silent,
+            weld: peak.voices.weld || 0,
+            weldCap: peak.caps.weld,
+            sizzle: peak.voices.sizzle || 0,
+            sizzleCap: peak.caps.sizzle,
+            total: peak.totalVoices,
+          };
+        }, SIGNATURES);
+        assert.deepEqual(after.silent, [], "sounds with no playable buffer");
+        assert.ok(after.ambienceOn, "ambience did not start");
+        assert.ok(
+          after.weld <= after.weldCap && after.sizzle <= after.sizzleCap,
+          `voice caps exceeded: weld ${after.weld}/${after.weldCap}, sizzle ${after.sizzle}/${after.sizzleCap}`,
+        );
+        assert.ok(
+          after.total <= 24,
+          `global voice cap exceeded: ${after.total}`,
+        );
+        return `${after.loaded} clips, peak weld ${after.weld}/${after.weldCap}, total ${after.total}`;
+      } finally {
+        await context.close();
+      }
+    },
+  );
+
   await context.close();
 };
 
@@ -841,7 +973,7 @@ try {
   browser = await chromium.launch({
     channel: "chromium",
     headless: true,
-    args,
+    args: [...args, "--autoplay-policy=no-user-gesture-required"],
   });
   // Hard stop includes slow GPU startup; finally still closes the sole browser.
   await Promise.race([
