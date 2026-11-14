@@ -1341,6 +1341,40 @@ export function createWaterCreature(kind, { scale } = {}) {
     particles.geo.dispose();
     bodyGeo.dispose();
   }
+  // Restores fresh-spawn state so a pooled creature can be reused (the game
+  // removes monsters instantly on death instead of playing startDeath).
+  function reset() {
+    dying = false;
+    dead = false;
+    deathAge = 0;
+    wind = 0;
+    prev = "idle";
+    attack = -1;
+    hitAge = 10;
+    heal = 0;
+    prevSea = false;
+    pose.visible = true;
+    pose.position.set(0, 0, 0);
+    pose.rotation.set(0, 0, 0);
+    pose.scale.set(1, 1, 1);
+    body.morphTargetInfluences[0] = 0;
+    hitOffsets.fill(0);
+    bodyGeo.attributes.aBoil.needsUpdate = true;
+    wet.scale.set(
+      kind === 5 ? 1.7 : kind === 1 ? 1.5 : 1.15,
+      kind === 5 ? 1.35 : 1,
+      1,
+    );
+    if (raincloud) raincloud.position.y = 0;
+    if (armor) {
+      armorTargets[0] = armorTargets[1] = armorTargets[2] = 0;
+      armor.morphTargetInfluences[0] =
+        armor.morphTargetInfluences[1] =
+        armor.morphTargetInfluences[2] =
+          0;
+      setShield(1);
+    }
+  }
   return {
     group,
     radius: def.radius * (scale === undefined ? def.s : scale),
@@ -1349,5 +1383,6 @@ export function createWaterCreature(kind, { scale } = {}) {
     startDeath,
     setShield,
     dispose,
+    reset,
   };
 }

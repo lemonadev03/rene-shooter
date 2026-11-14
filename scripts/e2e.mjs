@@ -343,6 +343,56 @@ const desktopGroup = async (browser) => {
   await startRun(page, "#playBtn");
   await page.evaluate(() => window.__e2e.fixture());
 
+  // Every kind spawns through the pooled sculpted-creature models, and the
+  // Coral Warden's reef shield still soaks, breaks and enrages it.
+  await runCase(
+    group,
+    "all 8 creature kinds spawn and the Coral shield breaks",
+    async () => {
+      const spawned = await page.evaluate(() => {
+        const kit = window.__e2e;
+        kit.fixture();
+        const kinds = [];
+        for (let kind = 0; kind < 8; kind++) {
+          const e = kit.monsters.addEnemy(kind, -14 + kind * 4, -22);
+          kinds.push({
+            kind: e.kind,
+            creature: Boolean(e.creature?.group),
+            inScene: e.g.parent === window.__game.scene,
+          });
+        }
+        return kinds;
+      });
+      assert.deepEqual(
+        spawned,
+        Array.from({ length: 8 }, (_, kind) => ({
+          kind,
+          creature: true,
+          inScene: true,
+        })),
+      );
+      await waitGameTime(page, 0.5);
+      const warden = await page.evaluate(() => {
+        const kit = window.__e2e;
+        const e = kit.core.enemies.find((enemy) => enemy.kind === 6);
+        const before = { hp: e.hp, shield: e.shieldHp, speed: e.speed };
+        kit.monsters.damageEnemy(e, before.shield + 10, e.pos.clone());
+        return {
+          before,
+          after: { hp: e.hp, shield: e.shieldHp, speed: e.speed },
+        };
+      });
+      assert.ok(warden.before.shield > 0, JSON.stringify(warden));
+      assert.equal(warden.after.shield, 0, JSON.stringify(warden));
+      assert.ok(warden.after.hp < warden.before.hp, JSON.stringify(warden));
+      assert.ok(
+        warden.after.speed > warden.before.speed,
+        JSON.stringify(warden),
+      );
+      return `shield ${warden.before.shield}->0, hp ${warden.before.hp}->${warden.after.hp}`;
+    },
+  );
+
   // RS-01: a close Tide Brute slam. Jumping dodges it; grounded takes the slam.
   const bruteSlam = async (jump) => {
     await page.evaluate((jump) => {
