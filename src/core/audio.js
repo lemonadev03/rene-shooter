@@ -172,9 +172,18 @@ function initAudio() {
     g.disconnect();
     if (!initialized) {
       initialized = true;
-      if ("requestIdleCallback" in window)
-        requestIdleCallback(() => ensureLoaded(), { timeout: 5000 });
-      else setTimeout(() => ensureLoaded(), 4000);
+      // Decode work must not compete with the rendering warm-up that gates
+      // the Play button, so idle loading waits until Play is enabled (the
+      // Play click itself loads immediately through ac()).
+      const loadWhenPlayEnabled = (triesLeft) => {
+        const button = document.getElementById("playBtn");
+        if ((button && !button.disabled) || triesLeft <= 0) {
+          if ("requestIdleCallback" in window)
+            requestIdleCallback(() => ensureLoaded(), { timeout: 5000 });
+          else ensureLoaded();
+        } else setTimeout(() => loadWhenPlayEnabled(triesLeft - 1), 250);
+      };
+      loadWhenPlayEnabled(240);
       document.addEventListener("visibilitychange", () => {
         if (!ambBus || !ambienceOn) return;
         ambBus.gain.linearRampToValueAtTime(
