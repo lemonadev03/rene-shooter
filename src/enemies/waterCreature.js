@@ -830,7 +830,7 @@ function spray(G, kind, seed) {
 // Opaque reef armor is sculpted separately and breaks into twelve pieces.
 let reefGeo, cloudGeo;
 const reefMaterials = [];
-function reefMaterial(stage) {
+export function reefMaterial(stage) {
   if (reefMaterials[stage]) return reefMaterials[stage];
   const m = new THREE.MeshStandardMaterial({
     vertexColors: true,

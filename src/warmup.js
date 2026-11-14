@@ -14,6 +14,7 @@ import {
   releasePowerup,
 } from "./ui/powerups.js";
 import { heatBeamMesh } from "./vfx/beam.js";
+import { reefMaterial } from "./enemies/waterCreature.js";
 import { scorchMarksMesh } from "./vfx/impacts.js";
 
 // Far below the sand: staged objects go through every render pass (world, shadow,
@@ -45,6 +46,25 @@ export function stageWarmup() {
       stage(monster.g, staged);
     }
   }
+  // A Coral Warden's shell switches to its cracked materials as it takes damage.
+  // Stage one copy of the shell in each cracked material so those programs compile
+  // now, not on the first hit.
+  const crackedShells = [];
+  const shell = monsters.flatMap((m) => {
+    const found = [];
+    m.g.traverse((node) => {
+      if (node.material === reefMaterial(0)) found.push(node);
+    });
+    return found;
+  })[0];
+  if (shell) {
+    for (const crackStage of [1, 2]) {
+      const copy = shell.clone();
+      copy.material = reefMaterial(crackStage);
+      shell.parent.add(copy);
+      crackedShells.push(copy);
+    }
+  }
   for (const type of PU_TYPES) {
     for (let i = 0; i < POWERUP_POOL_SIZE; i++) {
       const powerup = acquirePowerup(type);
@@ -71,6 +91,7 @@ export function stageWarmup() {
   for (const mesh of effects) mesh.visible = true;
   return () => {
     for (const object of staged) scene.remove(object);
+    for (const copy of crackedShells) copy.removeFromParent();
     // The staged monsters and powerups become the pooled ones. Their position is
     // restored on reuse; culling is not, so turn it back on here.
     for (const pooled of [...monsters, ...powerups]) {
