@@ -963,7 +963,7 @@ const startupGroup = async (browser) => {
         );
         const after = await status(boot.page);
         assert.equal(after.err, "", "#err shows text");
-        assert.ok(!/could not load/.test(after.progress), after.progress);
+        assert.ok(!/couldn't load/.test(after.progress), after.progress);
         assert.deepEqual(boot.pageErrors, [], "page errors");
         assert.ok(
           boot.requests() >= 2,
@@ -984,7 +984,7 @@ const startupGroup = async (browser) => {
       try {
         await boot.page.waitForFunction(
           () =>
-            /could not load/.test(
+            /couldn't load/.test(
               document.getElementById("loadingProgress").textContent,
             ),
           null,
@@ -996,7 +996,7 @@ const startupGroup = async (browser) => {
         assert.ok(after.disabled, "Play is enabled");
         assert.match(
           after.progress,
-          /An asset could not load\. Reload to retry\./,
+          /A game file couldn't load\. Reload the page to try again\./,
         );
         assert.equal(boot.requests() >= 3, true, `${boot.requests()} requests`);
         return `${boot.requests()} requests`;

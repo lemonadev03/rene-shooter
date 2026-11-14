@@ -1,4 +1,4 @@
-import { $ } from "../core/utils.js";
+import { $, titleCase } from "../core/utils.js";
 import { state as S } from "../core/state.js";
 import { beep } from "../core/audio.js";
 const EL = {
@@ -48,8 +48,8 @@ function setWeapon(w) {
 async function shareGame(btn, withScore) {
   const url = "https://lemonadev03.github.io/rene-shooter/";
   const text = withScore
-    ? `I scored ${S.score.toLocaleString()} on RENE SHOOTER ☀️💦 (Wave ${S.wave}, ${S.kills} evaporated) — beat that:`
-    : "RENE SHOOTER ☀️💦 first-person beach shooter in the browser — evaporate the water monsters!";
+    ? `I scored ${S.score.toLocaleString()} on RENE SHOOTER (Wave ${S.wave}, ${S.kills} evaporated). Can you beat it?`
+    : "RENE SHOOTER — first-person beach shooter in the browser. Evaporate the water monsters.";
   try {
     if (navigator.share) {
       await navigator.share({
@@ -60,7 +60,7 @@ async function shareGame(btn, withScore) {
     } else {
       await navigator.clipboard.writeText(text + " " + url);
       const o = btn.textContent;
-      btn.textContent = "✓ Link copied!";
+      btn.textContent = "Link copied";
       setTimeout(() => (btn.textContent = o), 1800);
     }
   } catch (e) {
@@ -105,16 +105,16 @@ function setWidth(key, v) {
 export function updateHud(frame, expectedAlive, powerupTypes) {
   if (frame - _hudFrame >= 5) {
     _hudFrame = frame;
-    setText("combo", S.combo > 1 ? "COMBO ×" + S.combo + " 🔥➜💦" : "");
+    setText("combo", S.combo > 1 ? "Combo ×" + S.combo : "");
     setWidth("hpBar", S.hp + "%");
     setText("hpTxt", Math.ceil(S.hp));
     setWidth("waterBar", S.water + "%");
     setText("waterTxt", Math.ceil(S.water) + "%");
     setText("score", S.score.toLocaleString());
-    setText("left", "🔥 " + expectedAlive + " left");
+    setText("left", expectedAlive + " left");
     const act = powerupTypes
       .filter((t) => t.dur > 0 && S.pu[t.k] > 0)
-      .map((t) => `${t.emoji} ${t.name} ${Math.ceil(S.pu[t.k])}s`);
+      .map((t) => `${t.emoji} ${titleCase(t.name)} ${Math.ceil(S.pu[t.k])} s`);
     const hide = !act.length;
     if (_last.powerHidden !== hide) {
       _last.powerHidden = hide;

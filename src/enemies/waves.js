@@ -72,7 +72,7 @@ export function spawnWave(n) {
   document.getElementById("wavePill").textContent = "WAVE " + n;
   const count = waveCount(n);
   waveState.pending = count;
-  showBanner("WAVE " + n, WAVE_SUBS[n] || "They are getting hotter…");
+  showBanner("WAVE " + n, WAVE_SUBS[n] || "Water monsters inbound.");
   beep(180, 0.25, "sawtooth", 0.07, -80);
   setTimeout(() => beep(240, 0.2, "sawtooth", 0.06, -60), 200);
   for (let i = 0; i < count; i++) {
@@ -124,7 +124,7 @@ export function updateWaves(dt, gameOver) {
     else {
       S.hp = Math.min(MAX_HP, S.hp + WAVE_CLEAR_HP);
       S.water = Math.min(MAX_CHARGE, S.water + WAVE_CLEAR_CHARGE);
-      showBanner("WAVE CLEAR! +❤", "Next wave incoming…");
+      showBanner("WAVE CLEAR", "Health restored. Next wave coming.");
       waveState.nextTimer = scheduleTimer(() => {
         waveState.nextTimer = null;
         if (S.mode === "play") spawnWave(S.wave + 1);

@@ -169,10 +169,10 @@ export async function warmDom() {
     el.textContent = UI_GLYPHS;
   });
   reveal("endTitle", (el) => {
-    el.textContent = "WIPED OUT! 🌊";
+    el.textContent = "WIPED OUT";
   });
   reveal("endSub", (el) => {
-    el.textContent = "The water monsters got you. Towel off and run it back.";
+    el.textContent = "The water monsters took the beach.";
   });
   reveal("hitmark", (el) => {
     el.style.opacity = "1";
@@ -190,9 +190,8 @@ export async function warmDom() {
   $("killFeed").prepend(feedItem);
   // Paint exact end-screen content, including its final-size emoji/text runs.
   await settleDom(deadline);
-  $("endTitle").textContent = "BEACH SAVED! 🏆";
-  $("endSub").textContent =
-    "Every water monster evaporated. Ateneo #2 does it again.";
+  $("endTitle").textContent = "BEACH SAVED";
+  $("endSub").textContent = "Every water monster evaporated.";
   await settleDom(deadline);
   feedItem.remove();
   for (const restore of restores) restore();

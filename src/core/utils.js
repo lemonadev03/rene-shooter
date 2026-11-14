@@ -9,6 +9,9 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
 /** @param {number} [x] @param {number} [y] @param {number} [z] */
 const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+/** ALL-CAPS config names in title case for use in sentences. @param {string} s */
+const titleCase = (s) =>
+  s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 /**
  * @param {number} w
  * @param {number} h
@@ -102,4 +105,4 @@ function sph(r, m, x = 0, y = 0, z = 0, w = 18, h = 14) {
   return ms;
 }
 
-export { $, clamp, rand, V3, canvasTex, mat, box, cyl, sph };
+export { $, clamp, rand, V3, titleCase, canvasTex, mat, box, cyl, sph };
