@@ -323,7 +323,7 @@ export function updateSurvival(dt) {
     if (Math.random() < 0.04) beep(rand(180, 260), 0.12, "sine", 0.035, -60);
     if (S.hp <= 0) {
       S.hp = 0;
-      feed("The rip current got Rene");
+      feed("Rene was pulled under by the rip current");
       lifecycle.gameOver(false);
       $("endSub").textContent =
         "The rip current pulled Rene under. Fight from the sand and recharge in the sun pools.";
