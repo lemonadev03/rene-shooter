@@ -201,6 +201,17 @@ updateViewmodel(0);
 initAudio();
 await initializeRendering({ stage: stageWarmup });
 await warmDom();
+// Play stays disabled until the HUD/title faces are in, so text never
+// reflows from the fallback font mid-load.
+await Promise.all([
+  document.fonts.load('500 16px "Barlow"'),
+  document.fonts.load('600 16px "Barlow"'),
+  document.fonts.load('700 16px "Barlow"'),
+  document.fonts.load('600 15px "Barlow Condensed"'),
+  document.fonts.load('700 15px "Barlow Condensed"'),
+  document.fonts.load('800 40px "Barlow Condensed"'),
+  document.fonts.load('italic 800 72px "Barlow Condensed"'),
+]);
 markRenderingReady();
 
 let frame = 0;

@@ -10,7 +10,7 @@ const EL = {
   combo: $("combo"),
   left: $("enemiesLeft"),
   hint: $("hint"),
-  power: $("powerPill"),
+  puStack: $("puStack"),
   ocean: $("oceanWarn"),
   cold: $("coldVig"),
 };
@@ -102,6 +102,67 @@ function setWidth(key, v) {
   _last[k] = v;
   EL[key].style.width = v;
 }
+// Timer-line colour per power-up key: warm buffs gold, cool buffs teal.
+const PU_LINE = {
+  rapid: "#ffd23a",
+  power: "#ffd23a",
+  speed: "#2dd4bf",
+  freeze: "#2dd4bf",
+};
+const puRows = new Map();
+function renderPowerups(powerupTypes) {
+  const active = new Set();
+  for (const t of powerupTypes) {
+    if (!(t.dur > 0 && S.pu[t.k] > 0)) continue;
+    active.add(t.k);
+    let row = puRows.get(t.k);
+    if (!row) {
+      const el = document.createElement("div");
+      el.className = "pu";
+      const name = document.createElement("span");
+      name.textContent = `${t.emoji} ${titleCase(t.name)}`;
+      const secs = document.createElement("b");
+      const line = document.createElement("i");
+      line.style.background = PU_LINE[t.k] || "#ffd23a";
+      el.append(name, secs, line);
+      row = { el, secs, line, text: "", width: "" };
+      puRows.set(t.k, row);
+    }
+    EL.puStack.append(row.el);
+    const text = `${Math.ceil(S.pu[t.k])} s`;
+    if (row.text !== text) {
+      row.text = text;
+      row.secs.textContent = text;
+    }
+    const width = `${Math.max(0, Math.min(100, (S.pu[t.k] / t.dur) * 100))}%`;
+    if (row.width !== width) {
+      row.width = width;
+      row.line.style.width = width;
+    }
+  }
+  for (const [key, row] of puRows) {
+    if (!active.has(key)) {
+      row.el.remove();
+      puRows.delete(key);
+    }
+  }
+}
+
+// On phones the health/charge plate sits in the top-left column, under the
+// power-ups; on wider screens it returns to the bottom-left of the HUD.
+const phoneLayout = window.matchMedia("(max-width: 640px)");
+const barsEl = document.querySelector(".bottom-left");
+const topLeftEl = document.querySelector(".top-left");
+const barsHome = barsEl?.parentElement;
+const barsNext = barsEl?.nextElementSibling;
+function placeBars() {
+  if (!barsEl || !topLeftEl || !barsHome) return;
+  if (phoneLayout.matches) topLeftEl.append(barsEl);
+  else barsHome.insertBefore(barsEl, barsNext);
+}
+placeBars();
+phoneLayout.addEventListener("change", placeBars);
+
 export function updateHud(frame, expectedAlive, powerupTypes) {
   if (frame - _hudFrame >= 5) {
     _hudFrame = frame;
@@ -112,15 +173,7 @@ export function updateHud(frame, expectedAlive, powerupTypes) {
     setText("waterTxt", Math.ceil(S.water) + "%");
     setText("score", S.score.toLocaleString());
     setText("left", expectedAlive + " left");
-    const act = powerupTypes
-      .filter((t) => t.dur > 0 && S.pu[t.k] > 0)
-      .map((t) => `${t.emoji} ${titleCase(t.name)} ${Math.ceil(S.pu[t.k])} s`);
-    const hide = !act.length;
-    if (_last.powerHidden !== hide) {
-      _last.powerHidden = hide;
-      EL.power.classList.toggle("hidden", hide);
-    }
-    if (act.length) setText("power", act.join("  ·  "));
+    renderPowerups(powerupTypes);
   }
 }
 export {

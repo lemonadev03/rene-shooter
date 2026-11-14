@@ -180,8 +180,18 @@ export async function warmDom() {
   reveal("bannerSub", (el) => {
     el.textContent = UI_GLYPHS;
   });
-  reveal("powerPill", (el) => {
-    el.textContent = UI_GLYPHS;
+  reveal("puStack", (el) => {
+    const row = document.createElement("div");
+    row.className = "pu";
+    const name = document.createElement("span");
+    name.textContent = UI_GLYPHS;
+    const secs = document.createElement("b");
+    secs.textContent = "7 s";
+    const line = document.createElement("i");
+    line.style.width = "74%";
+    line.style.background = "#ffd23a";
+    row.append(name, secs, line);
+    el.append(row);
   });
   reveal("oceanWarn", (el) => {
     el.textContent = "⚠ In the ocean";
