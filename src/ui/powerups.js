@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { rand } from "../core/utils.js";
+import { rand, titleCase } from "../core/utils.js";
 import { scene, state as S, player, powerups } from "../core/state.js";
 import { beep } from "../core/audio.js";
 import { spawnP } from "../vfx/particles.js";
@@ -118,7 +118,7 @@ function applyPowerup(p) {
     feed("❤️ +40 HP");
   } else {
     S.pu[t.k] = t.dur;
-    feed(`${t.emoji} ${t.name}! ${t.dur}s`);
+    feed(`${t.emoji} ${titleCase(t.name)} ${t.dur} s`);
   }
   S.score += POWERUP_SCORE;
   spawnP(p.g.position.clone().setY(1.1), 26, t.col, 3, 0.7, -1, 3);

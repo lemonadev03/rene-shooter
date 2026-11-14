@@ -295,10 +295,10 @@ export function updateSurvival(dt) {
     EL.ocean.classList.remove("hidden");
     EL.ocean.classList.toggle("draining", over > 0);
     EL.ocean.textContent = !inOcean
-      ? "🌊 Catch your breath — the current is fading…"
+      ? "Back on shore. The current is easing."
       : over > 0
-        ? "🌊 RIP CURRENT! HP draining — get back to shore!"
-        : `🌊 Rip current pulling… get out in ${Math.max(0, -over).toFixed(1)}s`;
+        ? "Rip current. Get back to shore."
+        : `In the ocean. Rip current in ${Math.max(0, -over).toFixed(1)} s`;
   } else {
     EL.ocean.classList.add("hidden");
     EL.ocean.classList.remove("draining");
@@ -323,10 +323,10 @@ export function updateSurvival(dt) {
     if (Math.random() < 0.04) beep(rand(180, 260), 0.12, "sine", 0.035, -60);
     if (S.hp <= 0) {
       S.hp = 0;
-      feed("🌊 The rip current got Rene!");
+      feed("Rene was pulled under by the rip current");
       lifecycle.gameOver(false);
       $("endSub").textContent =
-        "The rip current dragged Rene under. The sea is monster turf — fight from the sand and recharge in the sun pools.";
+        "The rip current pulled Rene under. Fight from the sand and recharge in the sun pools.";
     }
   }
   // slow hp regen after no hurt

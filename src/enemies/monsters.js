@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { clamp, rand } from "../core/utils.js";
+import { clamp, rand, titleCase } from "../core/utils.js";
 import {
   scene,
   state as S,
@@ -83,8 +83,8 @@ function killEnemy(e, scored = true) {
     S.comboT = 2.2;
     const pts = e.def.score * Math.max(1, S.combo);
     S.score += pts;
-    feed(`💨 Evaporated ${e.def.name} +${pts}`);
-  } else feed("💦 GUSHER burst itself!");
+    feed(`${titleCase(e.def.name)} evaporated +${pts}`);
+  } else feed("Gusher burst");
   _v3.copy(e.pos);
   _v3.y += 0.8;
   spawnP(_v3, 30, 0xffffff, 3.2, 0.9, 1, 3.5);
@@ -96,7 +96,7 @@ function killEnemy(e, scored = true) {
   scene.remove(e.g);
   if (e.kind === 5) {
     // PUDDLER pops into two Droplets
-    feed("🫧 PUDDLER split into two droplets!");
+    feed("Puddler split into two droplets");
     addEnemy(0, sx - 0.8, sz);
     addEnemy(0, sx + 0.8, sz);
   }
@@ -114,7 +114,7 @@ function damageEnemy(e, dmg, hitPos) {
     if (e.shieldMesh)
       e.shieldMesh.scale.setScalar(Math.max(0.55, e.shieldHp / e.maxShield));
     if (e.shieldHp <= 0 && e.shieldMesh) {
-      feed("🐚 CORAL shield shattered — the WARDEN is mad now!");
+      feed("Coral Warden's shell broke");
       e.shieldMesh.visible = false;
       e.speed *= 1.4;
       _v3.copy(e.pos);
@@ -244,7 +244,7 @@ export function updateMonsters(dt, t, fireWaterJet) {
       // GUSHER: swells at close range, then bursts
       if (e.burstTimer < 0 && dist < 2.5) {
         e.burstTimer = 0.85;
-        feed("💦 GUSHER is about to burst — MOVE!");
+        feed("Gusher about to burst. Get clear.");
       }
       if (e.burstTimer >= 0) {
         e.burstTimer -= dt;
