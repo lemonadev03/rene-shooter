@@ -44,3 +44,5 @@ Audio (`assets/audio/`, trimmed mono Opus/AAC excerpts, loudness-normalized; som
 - Beach: damp_beach_sand (PBR WebP maps, 2k) — https://polyhaven.com/a/damp_beach_sand — CC0.
 - Beach: weathered_planks (PBR WebP maps, 1k) — https://polyhaven.com/a/weathered_planks — CC0.
 - Beach: wood_planks (PBR WebP maps, 1k) — https://polyhaven.com/a/wood_planks — CC0.
+- Beach: palm_bark (PBR WebP maps, 1k diffuse/roughness, 512px normal) — https://polyhaven.com/a/palm_bark — CC0.
+- Beach: palm_frond (photo alpha card, WebP; plant_39 from "60 CC0 vegetation textures") — https://opengameart.org/content/60-cc0-vegetation-textures — CC0.

@@ -54,9 +54,20 @@ class ScaledAO extends GTAOPass {
     // The world's RenderPass already refreshed the single sun shadow map this frame.
     const autoUpdate = renderer.shadowMap.autoUpdate;
     renderer.shadowMap.autoUpdate = false;
+    // The G-buffer override materials ignore alphaTest, so alpha-card foliage
+    // would occlude as solid quads and smear dark halos over the sky. Meshes
+    // that opt out keep their real shadows from the world's RenderPass.
+    const excluded = [];
+    scene.traverse((object) => {
+      if (object.userData.excludeFromAO && object.visible) {
+        object.visible = false;
+        excluded.push(object);
+      }
+    });
     try {
       super.render(renderer, ...args);
     } finally {
+      for (const object of excluded) object.visible = true;
       renderer.shadowMap.autoUpdate = autoUpdate;
     }
   }

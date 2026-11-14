@@ -12,6 +12,7 @@ import {
 import { createBeachMaterials, updateSandQuality } from "./beach-materials.js";
 import { initScatter, updateScatterQuality } from "./scatter.js";
 import { mergeStaticChildren } from "./staticBatch.js";
+import { createPalmBatch, updatePalms } from "./palms.js";
 import { PIER } from "./pier.js";
 
 export { PIER };
@@ -200,83 +201,8 @@ export function initBeach() {
   sailboat(-55, 72, 0xff4d6d, 0.55);
   sailboat(30, 88, 0xffd23a, -0.4);
   sailboat(75, 64, 0xffffff, 0.33);
-  // palm tree
-  const trunkMat = mat(0x8a6242, 0.9),
-    leafMat = mat(0x21a356, 0.8, 0, { side: THREE.DoubleSide }),
-    cocoMat = mat(0x6b4a26, 0.8);
-  function palm(x, z, lean = 0.25, s = 1) {
-    const g = new THREE.Group();
-    g.position.set(x, 0, z);
-    const curve = new THREE.CatmullRomCurve3([
-      V3(0, 0, 0),
-      V3(lean * 1.2, 2.2, 0),
-      V3(lean * 3, 4.6, 0),
-    ]);
-    const trunk = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, 8, 0.22, 8),
-      trunkMat,
-    );
-    trunk.castShadow = true;
-    g.add(trunk);
-    const top = V3(lean * 3, 4.7, 0);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const leaf = new THREE.Mesh(
-        new THREE.PlaneGeometry(3.6, 0.6, 6, 1),
-        leafMat,
-      );
-      const pos = leaf.geometry.attributes.position;
-      for (let v = 0; v < pos.count; v++) {
-        const px = pos.getX(v);
-        pos.setZ(v, -Math.pow(Math.max(0, px), 2) * 0.22);
-      }
-      leaf.geometry.computeVertexNormals();
-      const dir = V3(Math.cos(a), 0, Math.sin(a));
-      leaf.position.copy(top).addScaledVector(dir, 1.6);
-      leaf.position.y += 0.18;
-      leaf.rotation.order = "YXZ";
-      leaf.rotation.y = -a;
-      leaf.rotation.x = -Math.PI / 2 + 0.3;
-      leaf.castShadow = true;
-      g.add(leaf);
-    }
-    g.add(
-      sph(0.24, cocoMat, top.x + 0.3, top.y - 0.3, 0.15),
-      sph(0.22, cocoMat, top.x - 0.25, top.y - 0.3, -0.1),
-    );
-    g.scale.setScalar(s);
-    g.rotation.y = rand(0, 6.28);
-    mergeStaticChildren(g);
-    scene.add(g);
-    g.updateMatrixWorld(true);
-    // trunk collider follows the lean: two capsules that block walkers, two upper ones that only stop shots
-    const at = (h) => {
-      let best = null,
-        bd = 1e9;
-      for (let i = 0; i <= 60; i++) {
-        const p = curve.getPoint(i / 60),
-          dd = Math.abs(p.y - h);
-        if (dd < bd) {
-          bd = dd;
-          best = p;
-        }
-      }
-      return g.localToWorld(best.clone());
-    };
-    const hs = [0, 1.2, 2.4, 3.5, 4.6],
-      tp = hs.map(at);
-    for (let i = 0; i < 4; i++)
-      addSeg(
-        tp[i].x,
-        tp[i].z,
-        tp[i + 1].x,
-        tp[i + 1].z,
-        0.27 * s,
-        hs[i + 1] * s,
-        hs[i] * s,
-        i >= 2,
-      );
-  }
+  // coconut palms (photoreal, merged into three meshes in palms.js)
+  const palms = createPalmBatch();
   [
     [-20, -28],
     [-32, -12],
@@ -291,13 +217,15 @@ export function initBeach() {
     [6, 10],
     [-14, 12],
   ].forEach(([x, z]) =>
-    palm(
+    palms.add(
       x,
       z,
       rand(0.1, 0.45) * (Math.random() < 0.5 ? -1 : 1),
       rand(0.9, 1.25),
+      rand(0, 6.28),
     ),
   );
+  palms.build();
   // umbrellas + towels + beach balls
   const umbCols = [0xff4d6d, 0xffb020, 0x00b4d8, 0x7c3aed, 0xff6b35];
   function umbrella(x, z, c) {
@@ -425,6 +353,7 @@ export function initBeach() {
 export function updateBeach(dt, t) {
   updateSandQuality();
   updateScatterQuality();
+  updatePalms(t);
   bonfireFlames.forEach((o) => {
     const sc = 1 + Math.sin(t * 11 + o.ph) * 0.22;
     o.f.scale.set(sc, sc * (1 + Math.sin(t * 13 + o.ph) * 0.18), sc);
