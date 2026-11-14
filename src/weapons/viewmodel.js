@@ -24,9 +24,15 @@ vmScene.add(mount);
 export let model, sight;
 let muzzle;
 const hipPosition = new THREE.Vector3(0.32, -0.3, -0.5);
-const hipRotation = new THREE.Quaternion().setFromEuler(
-  new THREE.Euler(0.22, 0.14, -0.09),
-);
+// At the hip the barrel converges on the crosshair ray this far ahead (m),
+// with a slight cant around the bore so the gun still reads as held.
+const HIP_CONVERGE = 18;
+const HIP_CANT = -0.09;
+const hipRotation = new THREE.Quaternion();
+const hipAim = new THREE.Quaternion();
+const hipCant = new THREE.Quaternion();
+const hipDir = new THREE.Vector3();
+const FORWARD = new THREE.Vector3(0, 0, -1);
 const adsPosition = new THREE.Vector3();
 const adsRotation = new THREE.Quaternion();
 const sightMatrix = new THREE.Matrix4();
@@ -49,6 +55,12 @@ export function mountGun(nextModel, { flip = false } = {}) {
   adsPosition.applyQuaternion(adsRotation).negate();
   // A 58 mm clear window at 157 mm eye relief fills ~20% of a 16:9 view.
   adsPosition.z -= 0.157;
+  // Hip pose: the ADS orientation (sight along the view axis), turned so the
+  // bore points at the crosshair from the hip position, then canted.
+  hipDir.set(0, 0, -HIP_CONVERGE).sub(hipPosition).normalize();
+  hipAim.setFromUnitVectors(FORWARD, hipDir);
+  hipCant.setFromAxisAngle(hipDir, HIP_CANT);
+  hipRotation.copy(hipCant).multiply(hipAim).multiply(adsRotation);
   vmScene.userData.viewmodel ??= {};
   Object.assign(vmScene.userData.viewmodel, { mount, sight, model });
   return model;
@@ -97,9 +109,10 @@ on("shot", ({ weapon, aiming }) => {
     0.075,
     recoilPosition.value.z + (burst ? 0.065 : 0.015) * scale,
   );
+  // Keep the muzzle near the crosshair: sustained hip fire tops out at 2.5°.
   recoilRotation.value.x = Math.min(
-    radians(7),
-    recoilRotation.value.x + radians(burst ? 4.2 : 0.6) * scale,
+    radians(2.5),
+    recoilRotation.value.x + radians(burst ? 2.2 : 0.3) * scale,
   );
   recoilRotation.value.y +=
     radians((Math.random() * 2 - 1) * (burst ? 1.1 : 0.3)) * scale;
