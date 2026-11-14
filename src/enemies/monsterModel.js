@@ -3,6 +3,7 @@ import { scene } from "../core/state.js";
 import { MON } from "../config/monsters.js";
 import { maxAliveByKind } from "./waveComposition.js";
 import { createWaterCreature } from "./waterCreature.js";
+import { quality } from "../core/quality.js";
 
 // Marks where a monster glows; updateMonsterLights copies it into a shared light slot.
 function makeGlow(color, intensity, distance) {
@@ -24,13 +25,18 @@ function createMonster(kind) {
   const g = creature.group;
   // The water body (physical), reef armor and rain cloud (standard) cast
   // shadows like the old primitive parts did; the wet disc and spray do not.
+  const casters = [];
+  const fx = [];
   g.traverse((node) => {
+    if (!node.isMesh) return;
     if (
-      node.isMesh &&
-      (node.material.isMeshPhysicalMaterial ||
-        node.material.isMeshStandardMaterial)
+      node.material.isMeshPhysicalMaterial ||
+      node.material.isMeshStandardMaterial
     ) {
       node.castShadow = true;
+      casters.push(node);
+    } else if (node.material.isShaderMaterial) {
+      fx.push(node);
     }
   });
   let glow = null;
@@ -70,7 +76,16 @@ function createMonster(kind) {
       `MON[${kind}].glow is ${Boolean(def.glow)} but the builder ${glow ? "calls" : "never calls"} makeGlow`,
     );
   }
-  return { g, creature, hpBar, s, glow };
+  return { g, creature, hpBar, s, glow, fx, casters };
+}
+// On the low tier the spray/wet shader meshes and the shadow pass over the
+// sculpted bodies are the difference between playable and not on weak GPUs
+// (and on software WebGL in CI), so creatures there keep body, armor and HP
+// bar only. Applied on every acquire, since the tier can change mid-run.
+function applyTier(m) {
+  const low = quality.tier === "low";
+  for (const node of m.fx) node.visible = !low;
+  for (const node of m.casters) node.castShadow = !low;
 }
 // Pooled monsters keep their materials and geometry for good: disposing them would
 // release compiled programs and bring back mid-play compiles. A monster's own state
@@ -99,6 +114,7 @@ function acquireMonster(kind) {
       });
     });
     monsterSlots.set(m.g, { kind, m, nodes, pooled: false });
+    applyTier(m);
     return m;
   }
   const slot = monsterSlots.get(pooled.g);
@@ -111,6 +127,7 @@ function acquireMonster(kind) {
     saved.node.frustumCulled = saved.frustumCulled;
   }
   pooled.creature.reset();
+  applyTier(pooled);
   return pooled;
 }
 // Safe to call twice for one monster. Never call it while `enemies` is being
