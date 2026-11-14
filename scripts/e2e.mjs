@@ -459,6 +459,41 @@ const desktopGroup = async (browser) => {
     assert.ok(inScene, "beam left the scene");
   });
 
+  // RS-12: during sustained hip fire the barrel points at the crosshair, not above it.
+  await runCase(
+    group,
+    "RS-12 hip-fire barrel points at the crosshair",
+    async () => {
+      await page.evaluate(() => {
+        const kit = window.__e2e;
+        kit.fixture();
+        kit.core.state.water = 100;
+        kit.hud.setWeapon(1);
+      });
+      await mouseHold(page, true);
+      await waitGameTime(page, 1);
+      const degrees = await page.evaluate(async () => {
+        const THREE = await import("three");
+        const { sight } = window.__game.vmScene.userData.viewmodel;
+        sight.updateWorldMatrix(true, false);
+        const origin = sight.getWorldPosition(new THREE.Vector3());
+        const bore = new THREE.Vector3(0, 0, -1).applyQuaternion(
+          sight.getWorldQuaternion(new THREE.Quaternion()),
+        );
+        const toCrosshair = new THREE.Vector3(0, 0, -18)
+          .sub(origin)
+          .normalize();
+        return THREE.MathUtils.radToDeg(bore.angleTo(toCrosshair));
+      });
+      await mouseHold(page, false);
+      assert.ok(
+        degrees < 4,
+        `barrel is ${degrees.toFixed(1)}° off the crosshair`,
+      );
+      return `${degrees.toFixed(2)}° off`;
+    },
+  );
+
   // RS-04: a shot that kills a Gusher inside its blast radius also kills the player.
   await runCase(
     group,
