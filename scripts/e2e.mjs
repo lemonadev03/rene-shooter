@@ -629,8 +629,11 @@ const desktopGroup = async (browser) => {
     },
   );
 
-  // Recorded audio (last on this page: it takes a minute, and the shared
-  // page keeps simulating meanwhile, which must not perturb earlier cases).
+  // The shared page closes first: under software WebGL its running game
+  // starves the audio case's own page, which then never enables Play.
+  await context.close();
+
+  // Recorded audio, in its own context after the shared page has closed.
   // With clip requests stalled, every sound call must play
   // the synth fallback without error; once released, every recorded sound
   // must load and play, ambience must start, and sustained Heat Ray fire
@@ -760,8 +763,6 @@ const desktopGroup = async (browser) => {
       }
     },
   );
-
-  await context.close();
 };
 
 const mobileGroup = async (browser) => {
