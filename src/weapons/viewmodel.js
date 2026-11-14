@@ -11,6 +11,7 @@ import { ScalarSpring, VectorSpring } from "../core/spring.js";
 import { on } from "../core/events.js";
 import { sun } from "../world/sky.js";
 import { buildSolarSoakerHD } from "./solarSoakerHD.js";
+import { loadFPArms } from "./fpArms.js";
 
 export const vmScene = new THREE.Scene();
 export const vmCamera = new THREE.PerspectiveCamera(
@@ -23,6 +24,7 @@ export const mount = new THREE.Group();
 vmScene.add(mount);
 export let model, sight;
 let muzzle;
+let arms;
 const hipPosition = new THREE.Vector3(0.32, -0.3, -0.5);
 // At the hip the barrel converges on the crosshair ray this far ahead (m),
 // with a slight cant around the bore so the gun still reads as held.
@@ -48,6 +50,7 @@ export function mountGun(nextModel, { flip = false } = {}) {
   muzzle = model.muzzle;
   model.group.rotation.y = flip ? Math.PI : 0;
   mount.add(model.group);
+  if (arms) mount.add(arms);
   sight.updateWorldMatrix(true, false);
   sightMatrix.copy(mount.matrixWorld).invert().multiply(sight.matrixWorld);
   sightMatrix.decompose(adsPosition, adsRotation, sightScale);
@@ -66,6 +69,11 @@ export function mountGun(nextModel, { flip = false } = {}) {
   return model;
 }
 mountGun(buildSolarSoakerHD(), { flip: false });
+// The arms are posed in gun space, so the mount's springs carry them for free.
+loadFPArms().then((loaded) => {
+  arms = loaded;
+  mount.add(arms);
+});
 mount.position.copy(hipPosition);
 mount.quaternion.copy(hipRotation);
 const vmSun = new THREE.DirectionalLight();

@@ -22,6 +22,8 @@ Audio (`assets/audio/`, trimmed mono Opus/AAC excerpts, loudness-normalized; som
 - `click`: Raspberry Mouse, Single Click — https://bigsoundbank.com/raspberry-mouse-single-click-s1735.html — CC0.
 - `switch`: Electric switch — https://bigsoundbank.com/electric-switch-s0026.html — CC0.
 
+- First-person arms (`assets/weapons/fp-arms/fp-arms.glb`, Meshopt GLB, WebP texture 1k, posed on the Solar Soaker grips and baked): FPS Arms (rigged only) — https://opengameart.org/content/fps-arms-rigged-only — CC0. MakeHuman-derived; skin tinted at runtime in `src/weapons/fpArms.js`.
+
 - Solar Soaker paint normal (1k, WebP): Rusty Painted Metal — https://polyhaven.com/a/rusty_painted_metal — CC0.
 - Solar Soaker paint roughness (1k, WebP): Rusty Painted Metal — https://polyhaven.com/a/rusty_painted_metal — CC0.
 - Solar Soaker steel normal (1k, WebP): Metal Plate — https://polyhaven.com/a/metal_plate — CC0.
