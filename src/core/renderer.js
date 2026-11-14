@@ -25,6 +25,9 @@ renderer.toneMapping = THREE.NoToneMapping;
 renderer.toneMappingExposure = 0.65;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.autoClear = false;
+// The water creatures are transmissive; quarter-res refraction (as in the
+// monster lab) keeps the transmission pass off the frame budget.
+renderer.transmissionResolutionScale = 0.25;
 renderer.info.autoReset = false;
 const post = createPost(renderer);
 const displayReady = measureDisplayInterval(() => renderer.clear());

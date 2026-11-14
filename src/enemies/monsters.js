@@ -103,6 +103,7 @@ function killEnemy(e, scored = true) {
 }
 function damageEnemy(e, dmg, hitPos) {
   if (e.dead) return;
+  e.creature.hit(hitPos);
   // 🛡️ WARDEN shield soaks damage first; break it and he enrages
   if (e.shieldHp > 0) {
     const absorbed = Math.min(e.shieldHp, dmg);
@@ -111,11 +112,9 @@ function damageEnemy(e, dmg, hitPos) {
     e.wet = Math.max(e.wet, 0.4);
     spawnP(hitPos, 6, 0x9ca3af, 2.4, 0.35, -5, 2);
     noiseHit(0.07, 0.07, 900);
-    if (e.shieldMesh)
-      e.shieldMesh.scale.setScalar(Math.max(0.55, e.shieldHp / e.maxShield));
-    if (e.shieldHp <= 0 && e.shieldMesh) {
+    e.creature.setShield(Math.max(0, e.shieldHp / e.maxShield));
+    if (e.shieldHp <= 0) {
       feed("Coral Warden's shell broke");
-      e.shieldMesh.visible = false;
       e.speed *= 1.4;
       _v3.copy(e.pos);
       _v3.y += 0.8;
@@ -365,19 +364,6 @@ export function updateMonsters(dt, t, fireWaterJet) {
         (0.78 + 0.22 * (e.hp / e.maxHp)) *
         e.boost,
     );
-    for (let fi = 0; fi < e.crown.length; fi++) {
-      const sc =
-        (1 + Math.sin(t * 11 + fi * 1.7) * 0.28) *
-        (0.35 + 0.65 * (e.hp / e.maxHp)) *
-        (1 - e.wet * 0.4);
-      e.crown[fi].scale.set(sc, sc * (1 + Math.sin(t * 13 + fi) * 0.2), sc);
-    }
-    for (let ai = 0; ai < e.arms.length; ai++) {
-      e.arms[ai].rotation.x = Math.sin(e.phase + ai * Math.PI) * 0.6 - 0.4;
-    }
-    if (e.spinPart) e.spinPart.rotation.z += dt * 2.4;
-    e.bodyMat.emissiveIntensity =
-      e.state === "windup" ? 1.6 : 0.45 + 0.75 * (e.hp / e.maxHp);
     e.hpBar.scale.x = Math.max(0, e.hp / e.maxHp);
     e.hpBar.position.x = -(1 - Math.max(0, e.hp / e.maxHp)) * 0.43; // bars face +Z local; monster faces player, so bars face camera
     if (Math.random() < 0.18) {
@@ -389,6 +375,7 @@ export function updateMonsters(dt, t, fireWaterJet) {
       spawnP(_v3, 1, e.kind === 7 ? 0x4ade80 : e.def.body, 0.5, 0.5, 2.5, 1.5);
     }
     // attacks
+    let attacked = false;
     if (
       e.kind !== 4 &&
       e.state !== "windup" &&
@@ -396,6 +383,7 @@ export function updateMonsters(dt, t, fireWaterJet) {
       e.atkCd <= 0
     ) {
       e.atkCd = 0.85;
+      attacked = true;
       hurtPlayer(e.def.dmg);
       _v3.copy(player.pos);
       _v3.y += 1.1;
@@ -408,14 +396,29 @@ export function updateMonsters(dt, t, fireWaterJet) {
         if (e.burstT <= 0) {
           e.burstLeft--;
           e.burstT = 0.22;
+          attacked = true;
           fireWaterJet(e);
         }
       } else if (dist < 27 && dist > 4 && e.shootCd <= 0) {
         e.shootCd = rand(1.7, 2.6);
         e.burstLeft = S.wave >= 5 ? 2 : S.wave >= 4 ? 1 : 0;
+        attacked = true;
         fireWaterJet(e);
       }
     }
+    // The creature animates itself from the same state the AI uses: windup
+    // covers the Brute/Surfer telegraphs and the Gusher's pre-burst swell.
+    e.creature.update(dt, t, {
+      state: attacked
+        ? "attack"
+        : e.state === "windup" || e.burstTimer >= 0
+          ? "windup"
+          : mv > 0.1
+            ? "walk"
+            : "idle",
+      speed: mv,
+      inSea: inWater,
+    });
   }
 
   return alive;
