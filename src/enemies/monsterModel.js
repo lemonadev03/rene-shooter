@@ -36,6 +36,11 @@ function createMonster(kind) {
       node.castShadow = true;
       casters.push(node);
     } else if (node.material.isShaderMaterial) {
+      // The GTAO G-buffer override materials ignore the spray's custom
+      // vertex shader, collapsing its instances into a solid quad at the
+      // creature's feet and smearing a grey AO rectangle over the sand.
+      // Opt the shader FX out like the palm fronds do.
+      node.userData.excludeFromAO = true;
       fx.push(node);
     }
   });
