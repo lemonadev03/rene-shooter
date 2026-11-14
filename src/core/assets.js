@@ -18,14 +18,16 @@ export const assetsReady = new Promise((resolve) => {
 function updateLoading() {
   const button = document.getElementById("playBtn");
   button.disabled = !idle || !renderingReady || failures.size > 0;
-  button.textContent = button.disabled ? "Loading…" : readyLabel;
-  document.getElementById("loadingProgress").textContent = failures.size
-    ? "An asset could not load. Reload to retry."
+  button.textContent = !button.disabled
+    ? readyLabel
     : !idle
-      ? `Loading assets… ${loaded}/${total}`
+      ? `Loading ${loaded} of ${total}`
       : !renderingReady
-        ? "Optimizing rendering…"
-        : "Ready";
+        ? "Preparing graphics"
+        : "Loading…";
+  document.getElementById("loadingProgress").textContent = failures.size
+    ? "A game file couldn't load. Reload the page to try again."
+    : "";
 }
 loadingManager.onStart = (_url, count, size) => {
   idle = false;

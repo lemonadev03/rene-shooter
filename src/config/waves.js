@@ -28,9 +28,9 @@ export const WAVE_CLEAR_CHARGE = 35;
 /** Banner copy under "WAVE n", indexed by wave number. Index 0 is unused. */
 export const WAVE_SUBS = [
   "",
-  "Droplets + 🏄 SURFERS inbound — dry them out!",
-  "💦 GUSHERS burst up close. Tide Brutes slam — jump it!",
-  "JETTERS shoot water, PUDDLERS split in two!",
-  "🐚 CORAL WARDENS hide behind shells. Kill the 🌧️ RAIN SHAMANS first!",
-  "FINAL WAVE — the whole ocean, angrier. Hold the beach! 🏖️",
+  "Droplets and Surfers. Surfers flash before they lunge.",
+  "Gushers burst up close. Jump when a Tide Brute slams.",
+  "Jetters shoot water. Puddlers split in two.",
+  "Coral Wardens hide behind shells. Take out Rain Shamans first: they heal the pack.",
+  "Final wave. Every monster, faster and tougher. Hold the beach.",
 ];

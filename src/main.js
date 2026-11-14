@@ -92,10 +92,10 @@ function gameOver(won) {
   resetWaves();
   resetInput();
   document.exitPointerLock?.();
-  $("endTitle").textContent = won ? "BEACH SAVED! 🏆" : "WIPED OUT! 🌊";
+  $("endTitle").textContent = won ? "BEACH SAVED" : "WIPED OUT";
   $("endSub").textContent = won
-    ? "Every water monster evaporated. Ateneo #2 does it again."
-    : "The water monsters got you. Towel off and run it back.";
+    ? "Every water monster evaporated."
+    : "The water monsters took the beach.";
   renderEndStats();
   $("end").classList.remove("hidden");
   $("hud").classList.add("hidden");
