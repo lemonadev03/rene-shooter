@@ -1,9 +1,15 @@
 // @ts-check
 import * as THREE from "three";
 import { canvasTex } from "../core/utils.js";
+import { drawIcon } from "../ui/icons.js";
 
-/** @param {string} main @param {string} [sub] @param {number} [scale] */
-export function makeLabel(main, sub = "", scale = 1) {
+/**
+ * @param {string} main
+ * @param {string} [sub]
+ * @param {number} [scale]
+ * @param {import("../ui/icons.js").IconRef} [icon]
+ */
+export function makeLabel(main, sub = "", scale = 1, icon) {
   const tex = canvasTex(512, 160, (g, w, h) => {
     g.clearRect(0, 0, w, h);
     g.fillStyle = "rgba(4,47,110,.88)";
@@ -14,12 +20,25 @@ export function makeLabel(main, sub = "", scale = 1) {
     g.fill();
     g.stroke();
     g.fillStyle = "#fff";
-    g.textAlign = "center";
     g.font = "900 62px Arial";
-    g.fillText(main, w / 2, sub ? 84 : 102);
+    const baseline = sub ? 84 : 102;
+    if (icon) {
+      const iconSize = 56;
+      const gap = 12;
+      const textWidth = g.measureText(main).width;
+      const startX = (w - (iconSize + gap + textWidth)) / 2;
+      drawIcon(g, icon.name, startX, baseline - 50, iconSize, icon.color);
+      g.fillStyle = "#fff";
+      g.textAlign = "left";
+      g.fillText(main, startX + iconSize + gap, baseline);
+    } else {
+      g.textAlign = "center";
+      g.fillText(main, w / 2, baseline);
+    }
     if (sub) {
       g.font = "800 36px Arial";
       g.fillStyle = "#7dd3fc";
+      g.textAlign = "center";
       g.fillText(sub, w / 2, 132);
     }
   });

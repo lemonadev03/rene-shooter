@@ -1,4 +1,5 @@
 import { $ } from "./core/utils.js";
+import { iconEl } from "./ui/icons.js";
 
 import {
   state,
@@ -256,7 +257,10 @@ function animate(now) {
     updateMonsterLights();
     renderFrame(dt);
   } catch (error) {
-    $("err").textContent = "⚠ " + error.message;
+    const errEl = $("err");
+    const errLabel = document.createElement("span");
+    errLabel.textContent = error.message;
+    errEl.replaceChildren(iconEl("warning", "#e5484d", 14), errLabel);
     console.error(error);
   }
 }

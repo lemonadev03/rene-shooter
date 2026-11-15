@@ -35,6 +35,7 @@
     "src/vfx/impacts.js",
     "src/vfx/beam.js",
     "src/enemies/monsterLights.js",
-    "src/player/fpcamera.js"
+    "src/player/fpcamera.js",
+    "src/ui/icons.js"
   ]
 }

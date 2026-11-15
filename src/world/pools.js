@@ -8,7 +8,7 @@ function addBeacon(
   parent,
   x,
   z,
-  { label, sub = "", color = 0x38bdf8, h = 7, scale = 1 } = {},
+  { label, sub = "", color = 0x38bdf8, h = 7, scale = 1, icon } = {},
 ) {
   const bm = new THREE.MeshBasicMaterial({
     color,
@@ -37,7 +37,7 @@ function addBeacon(
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(x, 0.05, z);
   parent.add(ring);
-  const sp = makeLabel(label, sub, scale);
+  const sp = makeLabel(label, sub, scale, icon);
   sp.position.set(x, 2.7, z);
   parent.add(sp);
   const a = { mat: bm, sprite: sp, baseY: 2.7, ring, phase: rand(0, 6) };
@@ -144,11 +144,12 @@ function buildPool(x, z, accent) {
   mergeStaticChildren(panel);
   mergeStaticChildren(g, [glow, core, orb]);
   addBeacon(g, 0, 0, {
-    label: "☀️ SUN POOL",
+    label: "SUN POOL",
     sub: "stand here to charge · it drifts",
     color: 0xffd23a,
     h: 6.5,
     scale: 0.95,
+    icon: { name: "sun", color: "#fff" },
   });
   const spot = { x, z, r: 3.2, kind: "sun" };
   sunPoolSpots.push(spot);

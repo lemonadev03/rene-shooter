@@ -122,6 +122,7 @@ if (!/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
 <link rel="modulepreload" href="src/player/controller.js">
 <link rel="modulepreload" href="src/player/fpcamera.js">
 <link rel="modulepreload" href="src/ui/hud.js">
+<link rel="modulepreload" href="src/ui/icons.js">
 <link rel="modulepreload" href="src/ui/powerups.js">
 <link rel="modulepreload" href="src/vfx/beam.js">
 <link rel="modulepreload" href="src/vfx/hitmarker.js">
@@ -177,19 +178,19 @@ if (!/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
   <div class="bottom-right">
     <div class="gunName">SOLAR SOAKER <span>SUN-DRY 3000</span></div>
     <div id="ammo">∞ <small>/ HEAT RAY</small></div>
-    <div class="slots"><div class="slot on">☀️<small>1 Heat Ray</small></div><div class="slot" id="slotBurst">🧽<small>2 Sponge</small></div></div>
+    <div class="slots"><div class="slot on"><svg class="ico" viewBox="0 0 256 256" aria-hidden="true"><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm8,24a64,64,0,1,0,64,64A64.07,64.07,0,0,0,128,64ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z" fill="#fff"/></svg><small>1 Heat Ray</small></div><div class="slot" id="slotBurst"><svg class="ico" viewBox="0 0 256 256" aria-hidden="true"><path d="M128,120a44,44,0,1,1,44-44A44.05,44.05,0,0,1,128,120Zm60,8a44,44,0,1,0,44,44A44.05,44.05,0,0,0,188,128ZM68,128a44,44,0,1,0,44,44A44.05,44.05,0,0,0,68,128Z" fill="#fff"/></svg><small>2 Sponge</small></div></div>
   </div>
   <div id="killFeed"></div>
   <!-- touch -->
   <div id="joy"><i id="joyStick"></i></div>
-  <div id="touchBtns"><button id="btnJump">JUMP</button><button id="btnFire">☀️</button><button id="btnAim">AIM</button></div>
+  <div id="touchBtns"><button id="btnJump">JUMP</button><button id="btnFire" aria-label="Shoot"><svg class="ico" viewBox="0 0 256 256" aria-hidden="true" style="width:28px;height:28px"><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm8,24a64,64,0,1,0,64,64A64.07,64.07,0,0,0,128,64ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z" fill="#fff"/></svg></button><button id="btnAim">AIM</button></div>
 </div>
 
 <!-- Title -->
 <div id="title">
   <h1>RENE<br/><span>SHOOTER</span></h1>
   <p class="tag">Evaporate the water monsters before they take the beach.<br/>The Solar Soaker runs on sunlight: recharge in the drifting sun pools. A short swim heals you, but stay out too long and the rip current pulls you under.</p>
-  <button id="playBtn" disabled data-ready-label="▶ Play">Loading…</button>
+  <button id="playBtn" disabled data-ready-label="Play">Loading…</button>
   <div id="loadingProgress" role="status" aria-live="polite"></div>
   <div class="shareRow">
     <button class="shareBtn" type="button">Share</button>
@@ -207,11 +208,11 @@ if (!/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
 <div id="end" class="hidden">
   <h1 id="endTitle">WIPED OUT</h1><p id="endSub"></p>
   <div class="stats"><div><b id="stScore">0</b><span>SCORE</span></div><div><b id="stWave">1</b><span>WAVE</span></div><div><b id="stKills">0</b><span>EVAPORATED</span></div></div>
-  <button id="againBtn">↻ &nbsp;Play again</button>
+  <button id="againBtn"><svg class="ico" viewBox="0 0 256 256" aria-hidden="true"><path d="M224,128a96,96,0,0,1-94.71,96H128A95.38,95.38,0,0,1,62.1,197.8a8,8,0,0,1,11-11.63A80,80,0,1,0,71.43,71.39a3.07,3.07,0,0,1-.26.25L60.63,81.29l17,17A8,8,0,0,1,72,112H24a8,8,0,0,1-8-8V56A8,8,0,0,1,29.66,50.3L49.31,70,60.25,60A96,96,0,0,1,224,128Z" fill="#0b1f4b"/></svg><span>Play again</span></button>
   <div class="shareRow"><button class="shareBtn" id="shareScore" type="button">Share score</button></div>
 </div>
 <noscript><div style="position:fixed;inset:0;background:#0284c7;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;z-index:50"><h1>RENE SHOOTER — Beach Dry-Out Showdown</h1><p>A free first-person beach shooter for the browser: play as Rene (#2 in Ateneo blue) with the Solar Soaker heat blaster, evaporate waves of water monsters, grab powerups, and recharge at drifting sun pools — patches of concentrated sunlight.</p><p>This game needs JavaScript and WebGL — please enable JavaScript to play.</p></div></noscript>
 <div id="err"></div>
-<script>window.addEventListener('error',e=>{const d=document.getElementById('err');if(d)d.textContent='⚠ '+(e.message||e.type)});</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');if(!d)return;const s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 256 256');s.setAttribute('class','ico');s.setAttribute('aria-hidden','true');s.style.width='14px';s.style.height='14px';const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d','M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM120,104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm8,88a12,12,0,1,1,12-12A12,12,0,0,1,128,192Z');p.setAttribute('fill','#e5484d');s.append(p);const t=document.createElement('span');t.textContent=e.message||e.type;d.replaceChildren(s,t)});</script>
 <script type="module" src="src/main.js"></script>
 </body></html>

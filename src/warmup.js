@@ -16,6 +16,7 @@ import {
 import { heatBeamMesh } from "./vfx/beam.js";
 import { reefMaterial } from "./enemies/waterCreature.js";
 import { scorchMarksMesh } from "./vfx/impacts.js";
+import { iconEl } from "./ui/icons.js";
 
 // Far below the sand: staged objects go through every render pass (world, shadow,
 // GTAO) without ever being on screen.
@@ -140,10 +141,10 @@ async function settleDom(deadline) {
   } while (stable < SETTLE_FRAMES && previous < deadline);
 }
 
-// Every emoji and symbol the HUD, banner, kill feed and end screen can show. A glyph
-// that has never been drawn costs the browser over 100 ms the first time on a cold
-// cache, which would land in the middle of wave 1.
-const UI_GLYPHS = "⚡ ☀️ ❤️ 👟 🧂 🏄 💦 🐚 🌧️ 🏖️ 💨 🛡️ 🫧 🌊 🏆 🔥 ➜ ◉ ✓ ⚠";
+// Every symbol the HUD can still show as text (sponge pips, infinity ammo, the
+// hitmarker cross). A glyph that has never been drawn costs the browser over
+// 100 ms the first time on a cold cache, which would land in the middle of wave 1.
+const UI_GLYPHS = "◉ ∞ ✕";
 
 // The first paint of the HUD, banner and end screen makes the browser compile its own
 // blur and text shaders. On a cold shader cache that blocks the GPU process for over
@@ -190,11 +191,11 @@ export async function warmDom() {
     const line = document.createElement("i");
     line.style.width = "74%";
     line.style.background = "#ffd23a";
-    row.append(name, secs, line);
+    row.append(iconEl("lightning", "#ffd23a", 16), name, secs, line);
     el.append(row);
   });
   reveal("oceanWarn", (el) => {
-    el.textContent = "⚠ In the ocean";
+    el.textContent = "In the ocean";
   });
   reveal("combo", (el) => {
     el.textContent = UI_GLYPHS;
@@ -219,7 +220,7 @@ export async function warmDom() {
   const feedItem = document.createElement("div");
   feedItem.textContent = UI_GLYPHS;
   $("killFeed").prepend(feedItem);
-  // Paint exact end-screen content, including its final-size emoji/text runs.
+  // Paint exact end-screen content, including its final-size text runs.
   await settleDom(deadline);
   $("endTitle").textContent = "BEACH SAVED";
   $("endSub").textContent = "Every water monster evaporated.";
