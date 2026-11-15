@@ -1,6 +1,7 @@
 import { $, titleCase } from "../core/utils.js";
 import { state as S } from "../core/state.js";
 import { beep } from "../core/audio.js";
+import { iconEl } from "./icons.js";
 const EL = {
   hpBar: $("hpBar"),
   hpTxt: $("hpTxt"),
@@ -28,9 +29,12 @@ function showBanner(t, s) {
   $("banner").classList.remove("hidden");
   bannerTimer = setTimeout(() => $("banner").classList.add("hidden"), 2200);
 }
-function feed(txt) {
+function feed(txt, icon) {
   const d = document.createElement("div");
-  d.textContent = txt;
+  if (icon) d.append(iconEl(icon.name, icon.color, 14));
+  const label = document.createElement("span");
+  label.textContent = txt;
+  d.append(label);
   $("killFeed").prepend(d);
   setTimeout(() => d.remove(), 2600);
   while ($("killFeed").children.length > 4) $("killFeed").lastChild.remove();
@@ -120,11 +124,11 @@ function renderPowerups(powerupTypes) {
       const el = document.createElement("div");
       el.className = "pu";
       const name = document.createElement("span");
-      name.textContent = `${t.emoji} ${titleCase(t.name)}`;
+      name.textContent = titleCase(t.name);
       const secs = document.createElement("b");
       const line = document.createElement("i");
       line.style.background = PU_LINE[t.k] || "#ffd23a";
-      el.append(name, secs, line);
+      el.append(iconEl(t.icon, t.iconColor, 16), name, secs, line);
       row = { el, secs, line, text: "", width: "" };
       puRows.set(t.k, row);
     }

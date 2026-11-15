@@ -55,7 +55,10 @@ function buildPowerup(t) {
   );
   beam.position.y = 2.25;
   g.add(beam);
-  const label = makeLabel(`${t.emoji} ${t.name}`, "", 0.62);
+  const label = makeLabel(t.name, "", 0.62, {
+    name: t.icon,
+    color: t.iconColor,
+  });
   label.position.y = 2.05;
   g.add(label);
   const blob2 = new THREE.Mesh(
@@ -115,10 +118,13 @@ function applyPowerup(p) {
   const t = p.t;
   if (t.k === "heal") {
     S.hp = Math.min(MAX_HP, S.hp + HEAL_AMOUNT);
-    feed("❤️ +40 HP");
+    feed("+40 HP", { name: t.icon, color: t.iconColor });
   } else {
     S.pu[t.k] = t.dur;
-    feed(`${t.emoji} ${titleCase(t.name)} ${t.dur} s`);
+    feed(`${titleCase(t.name)} ${t.dur} s`, {
+      name: t.icon,
+      color: t.iconColor,
+    });
   }
   S.score += POWERUP_SCORE;
   spawnP(p.g.position.clone().setY(1.1), 26, t.col, 3, 0.7, -1, 3);

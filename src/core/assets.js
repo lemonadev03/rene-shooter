@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { iconEl } from "../ui/icons.js";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
@@ -15,16 +16,25 @@ export const assetsReady = new Promise((resolve) => {
   resolveReady = resolve;
 });
 
+let playReady = false;
 function updateLoading() {
   const button = document.getElementById("playBtn");
   button.disabled = !idle || !renderingReady || failures.size > 0;
-  button.textContent = !button.disabled
-    ? readyLabel
-    : !idle
+  if (!button.disabled) {
+    if (!playReady) {
+      playReady = true;
+      const label = document.createElement("span");
+      label.textContent = readyLabel || "Play";
+      button.replaceChildren(iconEl("play", "#0b1f4b"), label);
+    }
+  } else {
+    playReady = false;
+    button.textContent = !idle
       ? `Loading ${loaded} of ${total}`
       : !renderingReady
         ? "Preparing graphics"
         : "Loading…";
+  }
   document.getElementById("loadingProgress").textContent = failures.size
     ? "A game file couldn't load. Reload the page to try again."
     : "";
