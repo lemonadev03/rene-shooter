@@ -27,6 +27,7 @@ function showBanner(t, s) {
   $("bannerTitle").textContent = t;
   $("bannerSub").textContent = s;
   $("banner").classList.remove("hidden");
+  placeBanner();
   bannerTimer = setTimeout(() => $("banner").classList.add("hidden"), 2200);
 }
 function feed(txt, icon) {
@@ -150,6 +151,7 @@ function renderPowerups(powerupTypes) {
       puRows.delete(key);
     }
   }
+  if (!bannerEl.classList.contains("hidden")) placeBanner();
 }
 
 // On phones the health/charge plate sits in the top-left column, under the
@@ -166,6 +168,18 @@ function placeBars() {
 }
 placeBars();
 phoneLayout.addEventListener("change", placeBars);
+
+// On phones the top-left column (power-ups plus bars) grows downward, so the
+// wave banner starts below it instead of at its fixed 21% line.
+const bannerEl = $("banner");
+function placeBanner() {
+  if (!phoneLayout.matches || !topLeftEl) {
+    bannerEl.style.top = "";
+    return;
+  }
+  const below = topLeftEl.getBoundingClientRect().bottom + 12;
+  bannerEl.style.top = `${Math.max(window.innerHeight * 0.21, below)}px`;
+}
 
 export function updateHud(frame, expectedAlive, powerupTypes) {
   if (frame - _hudFrame >= 5) {
