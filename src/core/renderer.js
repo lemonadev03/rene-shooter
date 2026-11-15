@@ -1,7 +1,7 @@
 import { $ } from "./utils.js";
 import * as THREE from "three";
 import { scene, camera, state } from "./state.js";
-import { vmCamera } from "../weapons/viewmodel.js";
+import { vmCamera, fitViewmodelToAspect } from "../weapons/viewmodel.js";
 import { configureShadows } from "../world/sky.js";
 import { createPost } from "./post.js";
 import {
@@ -65,6 +65,7 @@ export function resize() {
   camera.updateProjectionMatrix();
   vmCamera.aspect = aspect;
   vmCamera.updateProjectionMatrix();
+  fitViewmodelToAspect(aspect);
   setScale(scale);
 }
 addEventListener("resize", resize);
