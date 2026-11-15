@@ -6,7 +6,7 @@
 
 A first-person beach shooter built with Three.js. You play Rene: a 3D model based on the Ateneo #2 photo (white "ATENEO" #2 jersey with "RENE" on the back, blue shorts, grey knee brace on the left leg, white shoes), armed with the Solar Soaker (Sun-Dry 3000) heat blaster, fighting waves of water monsters on a beach. Firing drains solar charge; drifting sun pools (patches of concentrated sunlight) recharge it fast, plain beach sunshine trickle-charges it, and saltwater shorts it out.
 
-Powerups drop around the beach (⚡ Rapid Ray, ☀️ Mega Heat, 👟 Speed Soda, ❤️ +40 HP, 🧂 Salt Storm). Charge the gun in the drifting ☀️ sun pools — and stay out of the ocean: it drains charge, and after a 4-second grace window the rip current drains HP harder the longer you stay in.
+Powerups drop around the beach (⚡ Rapid Ray, ☀️ Mega Heat, 👟 Speed Soda, ❤️ +40 HP, 🧂 Salt Storm). Charge the gun in the drifting ☀️ sun pools — A short swim in the ocean heals 6 HP a second but drains charge, and after 4 seconds the rip current drains HP harder the longer you stay in.
 
 Eight monster types, each with its own trick: zigzag **Droplets**; **Tide Brutes** that ground-slam (jump to dodge); water-jet **Jetters** (burst-fire on later waves); **Surfers** that telegraph then lunge; **Gushers** that swell up and burst up close; **Puddlers** that pop into two droplets; **Coral Wardens** hiding behind breakable shell shields; and **Rain Shamans** that heal their pack. Water monsters regenerate and speed up in the ocean, but dry out (damage + slow) inside sun pools — lure them onto dry sand and into the light — kill them first. Waves ramp in count, HP, and speed across all five waves.
 

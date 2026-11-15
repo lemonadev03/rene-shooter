@@ -13,6 +13,7 @@ import {
   PLAYER_R,
   PLAYER_HEIGHT,
   OCEAN_GRACE,
+  OCEAN_HEAL_RATE,
   OCEAN_WARNING_TIME,
   OCEAN_RECOVERY_RATE,
   OCEAN_DRAIN_BASE,
@@ -286,7 +287,7 @@ export function updateSurvival(dt) {
   if (spot && input.keys.KeyR && Math.random() < 0.3)
     beep(rand(700, 1100), 0.05, "sine", 0.02);
   EL.hint.classList.toggle("show", S.water < LOW_CHARGE_HINT);
-  // 🌊 rip current: dip for refill, don't live out there — past the grace window HP drains harder the longer you stay
+  // 🌊 the sea heals for a short dip, then a rip current drains HP harder the longer you stay
   if (inOcean) player.oceanTime += dt;
   else
     player.oceanTime = Math.max(0, player.oceanTime - dt * OCEAN_RECOVERY_RATE);
@@ -298,12 +299,14 @@ export function updateSurvival(dt) {
       ? "Back on shore. The current is easing."
       : over > 0
         ? "Rip current. Get back to shore."
-        : `In the ocean. Rip current in ${Math.max(0, -over).toFixed(1)} s`;
+        : `Healing. Rip current in ${Math.max(0, -over).toFixed(1)} s`;
   } else {
     EL.ocean.classList.add("hidden");
     EL.ocean.classList.remove("draining");
   }
   EL.cold.style.boxShadow = `inset 0 0 130px 45px rgba(14,116,233,${clamp((player.oceanTime - 1.5) / 5, 0, 0.55)})`;
+  if (inOcean && over <= 0 && S.mode === "play" && S.hp < MAX_HP)
+    S.hp = Math.min(MAX_HP, S.hp + OCEAN_HEAL_RATE * dt);
   if (inOcean && over > 0 && S.mode === "play") {
     const drain = Math.min(
       OCEAN_DRAIN_MAX,
