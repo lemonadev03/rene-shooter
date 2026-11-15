@@ -863,7 +863,7 @@ const mobileGroup = async (browser) => {
     await waitGameTime(page, 0.3);
     const afterSponge = await snapshot();
     assert.equal(afterSponge.weapon, 2, "Sponge not selected");
-    assert.deepEqual(afterSponge.on, [false, true, false, false]);
+    assert.deepEqual(afterSponge.on, [false, true]);
     assert.match(afterSponge.ammo, /SPONGE/);
     await page.touchscreen.tap(heat.x, heat.y);
     await waitGameTime(page, 0.3);
