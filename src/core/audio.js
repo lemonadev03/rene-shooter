@@ -467,6 +467,61 @@ function noiseHit(d = 0.18, vol = 0.12, fc = 2500) {
   if (!played) synthNoise(d, vol, fc);
 }
 
+// Heat Ray hum: one continuous layered loop while the beam is on. Retriggering a
+// clip per shot (18 a second, voice-capped, ducking the ambience each time) gave
+// an uneven chug that read like a train.
+const RAY_LAYERS = [
+  // file, volume, loop start (s), loop end (s): steady, zero-crossing regions
+  ["weld", 0.32, 0.1, 1.1],
+  ["sizzle", 0.14, 0.05, 1.55],
+];
+const RAY_FADE_IN = 0.04;
+const RAY_FADE_OUT = 0.09;
+let rayLoop = null;
+/** @param {boolean} on @returns {boolean} whether the loop is playing */
+function setHeatRayLoop(on) {
+  if (!AC || AC.state !== "running" || !sfxBus) return false;
+  const t = AC.currentTime;
+  if (on) {
+    if (rayLoop) return true;
+    const gain = AC.createGain();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(1, t + RAY_FADE_IN);
+    gain.connect(sfxBus);
+    const sources = [];
+    for (const [file, vol, loopStart, loopEnd] of RAY_LAYERS) {
+      const buffer = buffers.get(file);
+      if (!buffer) continue;
+      const src = AC.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      src.loopStart = loopStart;
+      src.loopEnd = Math.min(loopEnd, buffer.duration);
+      const layer = AC.createGain();
+      layer.gain.value = vol;
+      src.connect(layer);
+      layer.connect(gain);
+      src.start(t, loopStart + Math.random() * (src.loopEnd - loopStart));
+      sources.push(src);
+    }
+    if (!sources.length) {
+      gain.disconnect();
+      return false;
+    }
+    rayLoop = { gain, sources };
+    duckAmbience();
+    return true;
+  } else if (rayLoop) {
+    const { gain, sources } = rayLoop;
+    rayLoop = null;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.linearRampToValueAtTime(0, t + RAY_FADE_OUT);
+    for (const src of sources) src.stop(t + RAY_FADE_OUT + 0.02);
+  }
+  return false;
+}
+
 // Test/capture hooks: which clips are in, how many voices are live, the caps,
 // and the master node (so a recorder can tap the mix inside the page).
 function audioDebug() {
@@ -481,9 +536,19 @@ function audioDebug() {
     voices: Object.fromEntries(voices),
     totalVoices,
     ambienceOn,
+    heatRayLoop: !!rayLoop,
     master,
     context: AC,
   };
 }
 
-export { ac, initAudio, beep, noiseHit, playSound, stepSound, audioDebug };
+export {
+  ac,
+  initAudio,
+  beep,
+  noiseHit,
+  playSound,
+  stepSound,
+  setHeatRayLoop,
+  audioDebug,
+};

@@ -11,7 +11,7 @@ import {
   waterJets,
 } from "../core/state.js";
 import { projectileHitsSolid, _hitP } from "../core/collision.js";
-import { beep, noiseHit } from "../core/audio.js";
+import { beep, noiseHit, setHeatRayLoop } from "../core/audio.js";
 import { spawnP } from "../vfx/particles.js";
 import { damageEnemy } from "../enemies/monsters.js";
 import { hurtPlayer } from "../player/controller.js";
@@ -148,7 +148,10 @@ function shoot(dt) {
   player.firing = firing;
   if (firing && !wasFiring) player.fireCd = 0;
   wasFiring = firing;
-  if (!firing) return;
+  if (!firing) {
+    setHeatRayLoop(false);
+    return;
+  }
   const rapid = S.pu.rapid > 0,
     mega = S.pu.power > 0;
   const cost =
@@ -165,6 +168,9 @@ function shoot(dt) {
     traceHeatRay();
     setHeatBeamTarget(_impact);
   }
+  const rayHum = setHeatRayLoop(
+    S.weapon === WEAPON_HEAT_RAY && S.water >= cost,
+  );
   if (player.fireCd > 0) return;
   if (S.water < cost) {
     player.fireCd = EMPTY_CHARGE_COOLDOWN;
@@ -205,7 +211,8 @@ function shoot(dt) {
       emit("hit", { pos: _impact, enemy, dmg, killed: enemy.dead });
       if (enemy.dead) emit("kill", { pos: _impact, enemy });
     }
-    noiseHit(0.035, 0.025, 1500);
+    // Clips still loading: fall back to the per-shot synth crackle.
+    if (!rayHum) noiseHit(0.035, 0.025, 1500);
   } else {
     // SPONGE BURST: dry sponge cubes that drink monsters dry
     player.fireCd = rapid ? SPONGE_COOLDOWN_RAPID : SPONGE_COOLDOWN;
