@@ -123,7 +123,10 @@ float waterHeight=(rip1.b+rip2.b)*.028*(1.-foam*.65);
 vec3 surfX=dFdx(-vViewPosition),surfY=dFdy(-vViewPosition);
 vec3 rX=cross(surfY,normal),rY=cross(normal,surfX);
 float det=dot(surfX,rX);
-normal=normalize(abs(det)*normal-sign(det)*(dFdx(waterHeight)*rX+dFdy(waterHeight)*rY));
+// Degenerate screen derivatives (silhouettes, sub-pixel triangles) give a zero
+// vector here; normalize(0) is NaN, and bloom would spread it over the frame.
+vec3 bumped=abs(det)*normal-sign(det)*(dFdx(waterHeight)*rX+dFdy(waterHeight)*rY);
+if(dot(bumped,bumped)>1e-20)normal=normalize(bumped);
 `,
     )
     .replace(
@@ -146,9 +149,20 @@ totalDiffuse=mix(totalDiffuse,transmitted.rgb,material.transmission);
 totalDiffuse+=vec3(.012,.065,.052)*(1.-exp(-material.thickness*.8))*(1.-foam);
 #endif
 `,
+    )
+    .replace(
+      "#include <dithering_fragment>",
+      `
+#include <dithering_fragment>
+// The near-mirror sun highlight can overflow the half-float HDR target (Inf) or
+// go NaN on degenerate pixels. Bloom blurs either across the whole frame, which
+// blanks the canvas for that frame, so cap it here.
+if(any(isnan(gl_FragColor)))gl_FragColor=vec4(0.,0.,0.,1.);
+gl_FragColor.rgb=min(gl_FragColor.rgb,vec3(64.));
+`,
     );
 };
-water.customProgramCacheKey = () => "sculpted-surf-2";
+water.customProgramCacheKey = () => "sculpted-surf-3";
 
 // All sculpting occurs once per kind. Sweeps have varying radii, flattened blades,
 // corrugated surfaces and Catmull-Rom spines; no cylinders or separate inner cores.
