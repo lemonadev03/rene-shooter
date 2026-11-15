@@ -11,8 +11,10 @@ export const PLAYER_HEIGHT = 1.85;
 
 /** Free swimming time before the rip current starts draining HP (s). */
 export const OCEAN_GRACE = 4;
-/** Time in the ocean before the rip current warning appears (s). */
-export const OCEAN_WARNING_TIME = 2.4;
+/** HP healed per second while swimming inside the grace window (HP/s). */
+export const OCEAN_HEAL_RATE = 6;
+/** Time in the ocean before the heal / rip current countdown appears (s). */
+export const OCEAN_WARNING_TIME = 0.3;
 /** How much faster ocean time falls back to zero on shore than it builds (unitless multiplier). */
 export const OCEAN_RECOVERY_RATE = 2;
 /** HP drained per second when the grace window has just ended (HP/s). */
