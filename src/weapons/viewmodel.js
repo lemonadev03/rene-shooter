@@ -23,7 +23,14 @@ export const mount = new THREE.Group();
 vmScene.add(mount);
 export let model, sight;
 let muzzle;
-const hipPosition = new THREE.Vector3(0.32, -0.3, -0.5);
+// Landscape hip pose. Narrow (portrait) screens pull the gun toward the
+// centre so it stays in frame: see fitViewmodelToAspect.
+const HIP_X = 0.32;
+const HIP_Z = -0.5;
+// Extra distance at the narrowest (phone portrait) aspect, so the gun shrinks
+// instead of filling the lower half of the screen.
+const HIP_Z_PORTRAIT_PUSH = 0.3;
+const hipPosition = new THREE.Vector3(HIP_X, -0.3, HIP_Z);
 // At the hip the barrel converges on the crosshair ray this far ahead (m),
 // with a slight cant around the bore so the gun still reads as held.
 const HIP_CONVERGE = 18;
@@ -55,17 +62,37 @@ export function mountGun(nextModel, { flip = false } = {}) {
   adsPosition.applyQuaternion(adsRotation).negate();
   // A 58 mm clear window at 157 mm eye relief fills ~20% of a 16:9 view.
   adsPosition.z -= 0.157;
-  // Hip pose: the ADS orientation (sight along the view axis), turned so the
-  // bore points at the crosshair from the hip position, then canted.
-  hipDir.set(0, 0, -HIP_CONVERGE).sub(hipPosition).normalize();
-  hipAim.setFromUnitVectors(FORWARD, hipDir);
-  hipCant.setFromAxisAngle(hipDir, HIP_CANT);
-  hipRotation.copy(hipCant).multiply(hipAim).multiply(adsRotation);
+  updateHipRotation();
   vmScene.userData.viewmodel ??= {};
   Object.assign(vmScene.userData.viewmodel, { mount, sight, model });
   return model;
 }
+// Hip pose: the ADS orientation (sight along the view axis), turned so the
+// bore points at the crosshair from the hip position, then canted.
+function updateHipRotation() {
+  hipDir.set(0, 0, -HIP_CONVERGE).sub(hipPosition).normalize();
+  hipAim.setFromUnitVectors(FORWARD, hipDir);
+  hipCant.setFromAxisAngle(hipDir, HIP_CANT);
+  hipRotation.copy(hipCant).multiply(hipAim).multiply(adsRotation);
+}
+
+// The viewmodel camera keeps a fixed vertical FOV, so on a portrait phone the
+// visible half-width at the gun's depth shrinks to ~0.12 m and a gun at
+// x = 0.32 shows only its muzzle. Narrow screens push the gun back, then keep
+// the hip pose inside 80% of the visible half-width.
+export function fitViewmodelToAspect(aspect) {
+  const narrow = THREE.MathUtils.clamp((4 / 3 - aspect) / (4 / 3 - 0.46), 0, 1);
+  hipPosition.z = HIP_Z - HIP_Z_PORTRAIT_PUSH * narrow;
+  const halfWidth =
+    -hipPosition.z *
+    Math.tan(THREE.MathUtils.degToRad(vmCamera.fov * 0.5)) *
+    aspect;
+  hipPosition.x = Math.min(HIP_X, halfWidth * 0.8);
+  updateHipRotation();
+}
+
 mountGun(buildSolarSoakerHD(), { flip: false });
+fitViewmodelToAspect(innerWidth / innerHeight);
 mount.position.copy(hipPosition);
 mount.quaternion.copy(hipRotation);
 const vmSun = new THREE.DirectionalLight();
