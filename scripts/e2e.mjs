@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { startServer } from "./serve.mjs";
 import { HEAT_RAY_COOLDOWN, SPONGE_COOLDOWN } from "../src/config/weapons.js";
@@ -16,15 +16,14 @@ const args =
   backend === "metal"
     ? ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"]
     : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"];
-const server = process.env.E2E_URL ? null : await startServer();
-const baseUrl = process.env.E2E_URL || `${server.url}/index.html`;
-const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}q=${quality}`;
+let server;
+let url;
 const started = performance.now();
 const report = {
   backend,
   quality,
-  url,
   cases: [],
+  blocks: [],
   pageErrors: [],
   consoleErrors: [],
   failedResponses: [],
@@ -163,9 +162,10 @@ const watch = (page, group) => {
 
 // Runs one named case. A failure is recorded and the suite carries on, so one
 // run shows every broken behavior at once.
+let currentBlock;
 const runCase = async (group, name, body) => {
   const caseStarted = performance.now();
-  const entry = { group, name };
+  const entry = { group, name, block: currentBlock };
   try {
     entry.detail = (await body()) || "";
     entry.result = "pass";
@@ -280,7 +280,7 @@ const recordLoadingFrames = async (browser, hideWeapon) => {
   }
 };
 
-const desktopGroup = async (browser) => {
+const desktopLoading = async (browser) => {
   const group = "desktop";
   // RS-10: the calibration frames draw the weapon so its programs compile, but it
   // must not reach the canvas before Play. Every frame drawn while loading must
@@ -321,368 +321,405 @@ const desktopGroup = async (browser) => {
       return `${withWeapon.length} frames, worst ${(worst * 100).toFixed(2)}% differ`;
     },
   );
+};
 
+// Each desktop block owns a fresh page, including cleanup if setup fails.
+const withDesktopPage = async (browser, body) => {
   const context = await browser.newContext({
     viewport: { width: 1000, height: 700 },
   });
-  const page = await context.newPage();
-  watch(page, group);
-  await page.addInitScript(seedScript);
-  await bootPage(page, false);
+  try {
+    const page = await context.newPage();
+    watch(page, "desktop");
+    await page.addInitScript(seedScript);
+    await bootPage(page, false);
+    await body(page);
+  } finally {
+    await context.close();
+  }
+};
 
-  await runCase(group, "effects stay in the scene after warm-up", async () => {
-    const missing = await page.evaluate(() => {
-      const scene = window.__game.scene;
-      return ["Heat Ray beam", "Heat Ray sand scorches"].filter(
-        (name) => scene.getObjectByName(name)?.parent !== scene,
-      );
-    });
-    assert.deepEqual(missing, [], "effects missing from the scene");
-  });
+const desktopEffectsCreaturesSlam = (browser) =>
+  withDesktopPage(browser, async (page) => {
+    const group = "desktop";
 
-  await startRun(page, "#playBtn");
-  await page.evaluate(() => window.__e2e.fixture());
+    await runCase(
+      group,
+      "effects stay in the scene after warm-up",
+      async () => {
+        const missing = await page.evaluate(() => {
+          const scene = window.__game.scene;
+          return ["Heat Ray beam", "Heat Ray sand scorches"].filter(
+            (name) => scene.getObjectByName(name)?.parent !== scene,
+          );
+        });
+        assert.deepEqual(missing, [], "effects missing from the scene");
+      },
+    );
 
-  // Every kind spawns through the pooled sculpted-creature models, and the
-  // Coral Warden's reef shield still soaks, breaks and enrages it.
-  await runCase(
-    group,
-    "all 8 creature kinds spawn and the Coral shield breaks",
-    async () => {
-      const spawned = await page.evaluate(() => {
+    await startRun(page, "#playBtn");
+    await page.evaluate(() => window.__e2e.fixture());
+
+    // Every kind spawns through the pooled sculpted-creature models, and the
+    // Coral Warden's reef shield still soaks, breaks and enrages it.
+    await runCase(
+      group,
+      "all 8 creature kinds spawn and the Coral shield breaks",
+      async () => {
+        const spawned = await page.evaluate(() => {
+          const kit = window.__e2e;
+          kit.fixture();
+          const kinds = [];
+          for (let kind = 0; kind < 8; kind++) {
+            const e = kit.monsters.addEnemy(kind, -14 + kind * 4, -22);
+            kinds.push({
+              kind: e.kind,
+              creature: Boolean(e.creature?.group),
+              inScene: e.g.parent === window.__game.scene,
+            });
+          }
+          return kinds;
+        });
+        assert.deepEqual(
+          spawned,
+          Array.from({ length: 8 }, (_, kind) => ({
+            kind,
+            creature: true,
+            inScene: true,
+          })),
+        );
+        await waitGameTime(page, 0.5);
+        const warden = await page.evaluate(() => {
+          const kit = window.__e2e;
+          const e = kit.core.enemies.find((enemy) => enemy.kind === 6);
+          const before = { hp: e.hp, shield: e.shieldHp, speed: e.speed };
+          kit.monsters.damageEnemy(e, before.shield + 10, e.pos.clone());
+          return {
+            before,
+            after: { hp: e.hp, shield: e.shieldHp, speed: e.speed },
+          };
+        });
+        assert.ok(warden.before.shield > 0, JSON.stringify(warden));
+        assert.equal(warden.after.shield, 0, JSON.stringify(warden));
+        assert.ok(warden.after.hp < warden.before.hp, JSON.stringify(warden));
+        assert.ok(
+          warden.after.speed > warden.before.speed,
+          JSON.stringify(warden),
+        );
+        return `shield ${warden.before.shield}->0, hp ${warden.before.hp}->${warden.after.hp}`;
+      },
+    );
+
+    // RS-01: a close Tide Brute slam. Jumping dodges it; grounded takes the slam.
+    const bruteSlam = async (jump) => {
+      await page.evaluate((jump) => {
         const kit = window.__e2e;
         kit.fixture();
-        const kinds = [];
-        for (let kind = 0; kind < 8; kind++) {
-          const e = kit.monsters.addEnemy(kind, -14 + kind * 4, -22);
-          kinds.push({
-            kind: e.kind,
-            creature: Boolean(e.creature?.group),
-            inScene: e.g.parent === window.__game.scene,
-          });
+        const brute = kit.monsters.addEnemy(1, 0, -7.6);
+        brute.state = "windup";
+        brute.stateT = 0.12;
+        brute.speed = 0;
+        kit.t0 = kit.core.state.time;
+        kit.hurts.length = 0;
+        if (jump) {
+          for (const type of ["keydown", "keyup"])
+            window.dispatchEvent(new KeyboardEvent(type, { code: "Space" }));
         }
-        return kinds;
-      });
-      assert.deepEqual(
-        spawned,
-        Array.from({ length: 8 }, (_, kind) => ({
-          kind,
-          creature: true,
-          inScene: true,
+      }, jump);
+      await waitGameTime(page, 2.4);
+      return page.evaluate(() =>
+        window.__e2e.hurts.map((hurt) => ({
+          dmg: hurt.dmg,
+          t: +(hurt.t - window.__e2e.t0).toFixed(2),
         })),
       );
-      await waitGameTime(page, 0.5);
-      const warden = await page.evaluate(() => {
-        const kit = window.__e2e;
-        const e = kit.core.enemies.find((enemy) => enemy.kind === 6);
-        const before = { hp: e.hp, shield: e.shieldHp, speed: e.speed };
-        kit.monsters.damageEnemy(e, before.shield + 10, e.pos.clone());
-        return {
-          before,
-          after: { hp: e.hp, shield: e.shieldHp, speed: e.speed },
-        };
-      });
-      assert.ok(warden.before.shield > 0, JSON.stringify(warden));
-      assert.equal(warden.after.shield, 0, JSON.stringify(warden));
-      assert.ok(warden.after.hp < warden.before.hp, JSON.stringify(warden));
-      assert.ok(
-        warden.after.speed > warden.before.speed,
-        JSON.stringify(warden),
-      );
-      return `shield ${warden.before.shield}->0, hp ${warden.before.hp}->${warden.after.hp}`;
-    },
-  );
-
-  // RS-01: a close Tide Brute slam. Jumping dodges it; grounded takes the slam.
-  const bruteSlam = async (jump) => {
-    await page.evaluate((jump) => {
-      const kit = window.__e2e;
-      kit.fixture();
-      const brute = kit.monsters.addEnemy(1, 0, -7.6);
-      brute.state = "windup";
-      brute.stateT = 0.12;
-      brute.speed = 0;
-      kit.t0 = kit.core.state.time;
-      kit.hurts.length = 0;
-      if (jump) {
-        for (const type of ["keydown", "keyup"])
-          window.dispatchEvent(new KeyboardEvent(type, { code: "Space" }));
-      }
-    }, jump);
-    await waitGameTime(page, 2.4);
-    return page.evaluate(() =>
-      window.__e2e.hurts.map((hurt) => ({
-        dmg: hurt.dmg,
-        t: +(hurt.t - window.__e2e.t0).toFixed(2),
-      })),
-    );
-  };
-  await runCase(group, "RS-01 grounded player takes the slam", async () => {
-    const hurts = await bruteSlam(false);
-    assert.equal(hurts[0]?.dmg, 16, JSON.stringify(hurts));
-    assert.ok(hurts[0].t < 0.6, `slam landed late: ${JSON.stringify(hurts)}`);
-    return JSON.stringify(hurts.slice(0, 2));
-  });
-  await runCase(
-    group,
-    "RS-01 jumping dodges the slam, melee resumes",
-    async () => {
-      const hurts = await bruteSlam(true);
-      const early = hurts.filter((hurt) => hurt.t < 0.8);
-      assert.deepEqual(
-        early,
-        [],
-        `damage during the slam: ${JSON.stringify(hurts)}`,
-      );
-      const resumed = hurts.find((hurt) => hurt.t >= 0.8);
-      assert.equal(
-        resumed?.dmg,
-        18,
-        `no melee after recovery: ${JSON.stringify(hurts)}`,
-      );
-      assert.ok(
-        resumed.t <= 1.8,
-        `melee resumed late: ${JSON.stringify(hurts)}`,
-      );
+    };
+    await runCase(group, "RS-01 grounded player takes the slam", async () => {
+      const hurts = await bruteSlam(false);
+      assert.equal(hurts[0]?.dmg, 16, JSON.stringify(hurts));
+      assert.ok(hurts[0].t < 0.6, `slam landed late: ${JSON.stringify(hurts)}`);
       return JSON.stringify(hurts.slice(0, 2));
-    },
-  );
-
-  // RS-03 and the beam: hold the trigger for 2 s of game time.
-  const holdFire = async (weapon, water) => {
-    await page.evaluate(
-      ([weapon, water]) => {
-        const kit = window.__e2e;
-        kit.fixture();
-        kit.core.state.water = water;
-        kit.hud.setWeapon(weapon);
-        const beam = window.__game.scene.getObjectByName("Heat Ray beam");
-        kit.beamSeen = false;
-        kit.beamTimer = setInterval(() => {
-          if (beam.visible) kit.beamSeen = true;
-        }, 10);
-      },
-      [weapon, water],
-    );
-    await mouseHold(page, true);
-    await waitGameTime(page, 2);
-    await mouseHold(page, false);
-    return page.evaluate(() => {
-      const kit = window.__e2e;
-      clearInterval(kit.beamTimer);
-      return { shots: kit.shots.length, beamSeen: kit.beamSeen };
     });
-  };
-  const heatNominal = 2 / HEAT_RAY_COOLDOWN;
-  const spongeNominal = 2 / SPONGE_COOLDOWN;
-  await runCase(group, "RS-03 empty heat ray trickles on sand", async () => {
-    const { shots } = await holdFire(1, 0);
-    assert.ok(shots >= 1 && shots <= 8, `${shots} shots in 2 s`);
-    return `${shots} shots`;
-  });
-  await runCase(group, "RS-03 empty sponge fires nothing", async () => {
-    const { shots } = await holdFire(2, 0);
-    assert.equal(shots, 0, `${shots} bursts in 2 s`);
-    return `${shots} bursts`;
-  });
-  await runCase(group, "RS-03 full-charge cadence unchanged", async () => {
-    const heat = await holdFire(1, 100);
-    assert.ok(
-      heat.shots >= heatNominal * 0.5 && heat.shots <= heatNominal + 1,
-      `heat ray fired ${heat.shots} (nominal ${Math.round(heatNominal)})`,
+    await runCase(
+      group,
+      "RS-01 jumping dodges the slam, melee resumes",
+      async () => {
+        const hurts = await bruteSlam(true);
+        const early = hurts.filter((hurt) => hurt.t < 0.8);
+        assert.deepEqual(
+          early,
+          [],
+          `damage during the slam: ${JSON.stringify(hurts)}`,
+        );
+        const resumed = hurts.find((hurt) => hurt.t >= 0.8);
+        assert.equal(
+          resumed?.dmg,
+          18,
+          `no melee after recovery: ${JSON.stringify(hurts)}`,
+        );
+        assert.ok(
+          resumed.t <= 1.8,
+          `melee resumed late: ${JSON.stringify(hurts)}`,
+        );
+        return JSON.stringify(hurts.slice(0, 2));
+      },
     );
-    const sponge = await holdFire(2, 100);
-    assert.ok(
-      sponge.shots >= 3 && sponge.shots <= spongeNominal + 1,
-      `sponge fired ${sponge.shots} (nominal ${Math.round(spongeNominal)})`,
-    );
-    return `heat ray ${heat.shots}, sponge ${sponge.shots}`;
-  });
-  await runCase(group, "heat ray beam shows while firing", async () => {
-    const { beamSeen } = await holdFire(1, 100);
-    assert.ok(beamSeen, "beam never became visible");
-    const inScene = await page.evaluate(
-      () =>
-        window.__game.scene.getObjectByName("Heat Ray beam")?.parent ===
-        window.__game.scene,
-    );
-    assert.ok(inScene, "beam left the scene");
   });
 
-  // RS-12: during sustained hip fire the barrel points at the crosshair, not above it.
-  await runCase(
-    group,
-    "RS-12 hip-fire barrel points at the crosshair",
-    async () => {
-      await page.evaluate(() => {
-        const kit = window.__e2e;
-        kit.fixture();
-        kit.core.state.water = 100;
-        kit.hud.setWeapon(1);
-      });
-      await mouseHold(page, true);
-      await waitGameTime(page, 1);
-      const degrees = await page.evaluate(async () => {
-        const THREE = await import("three");
-        const { sight } = window.__game.vmScene.userData.viewmodel;
-        sight.updateWorldMatrix(true, false);
-        const origin = sight.getWorldPosition(new THREE.Vector3());
-        const bore = new THREE.Vector3(0, 0, -1).applyQuaternion(
-          sight.getWorldQuaternion(new THREE.Quaternion()),
-        );
-        const toCrosshair = new THREE.Vector3(0, 0, -18)
-          .sub(origin)
-          .normalize();
-        return THREE.MathUtils.radToDeg(bore.angleTo(toCrosshair));
-      });
-      await mouseHold(page, false);
-      assert.ok(
-        degrees < 4,
-        `barrel is ${degrees.toFixed(1)}° off the crosshair`,
-      );
-      return `${degrees.toFixed(2)}° off`;
-    },
-  );
+const desktopWeapons = (browser) =>
+  withDesktopPage(browser, async (page) => {
+    const group = "desktop";
+    await startRun(page, "#playBtn");
+    await page.evaluate(() => window.__e2e.fixture());
 
-  // RS-04: a shot that kills a Gusher inside its blast radius also kills the player.
-  await runCase(
-    group,
-    "RS-04 lethal Gusher kill reaches the end screen",
-    async () => {
-      await page.evaluate(() => {
-        const kit = window.__e2e;
-        kit.fixture();
-        Object.assign(kit.core.state, { hp: 10, score: 0, kills: 0, combo: 0 });
-        const gusher = kit.monsters.addEnemy(4, 0, -8);
-        gusher.hp = 0.1;
-        gusher.speed = 0;
-        gusher.abCd = 99;
-        gusher.state = "chase";
-        window.__game.aimAt(
-          gusher.pos.clone().add({ x: 0, y: 0.7 * gusher.s, z: 0 }),
-        );
-      });
-      await mouseHold(page, true);
-      await page.waitForFunction(
-        () => window.__game.state.mode === "end",
-        null,
-        {
-          timeout: 15000,
+    // RS-03 and the beam: hold the trigger for 2 s of game time.
+    const holdFire = async (weapon, water) => {
+      await page.evaluate(
+        ([weapon, water]) => {
+          const kit = window.__e2e;
+          kit.fixture();
+          kit.core.state.water = water;
+          kit.hud.setWeapon(weapon);
+          const beam = window.__game.scene.getObjectByName("Heat Ray beam");
+          kit.beamSeen = false;
+          kit.beamTimer = setInterval(() => {
+            if (beam.visible) kit.beamSeen = true;
+          }, 10);
         },
+        [weapon, water],
       );
+      await mouseHold(page, true);
+      await waitGameTime(page, 2);
       await mouseHold(page, false);
-      const result = await page.evaluate(() => ({
-        score: window.__game.state.score,
-        kills: window.__game.state.kills,
-        shownScore: document.getElementById("stScore").textContent,
-        shownKills: document.getElementById("stKills").textContent,
-      }));
+      return page.evaluate(() => {
+        const kit = window.__e2e;
+        clearInterval(kit.beamTimer);
+        return { shots: kit.shots.length, beamSeen: kit.beamSeen };
+      });
+    };
+    const heatNominal = 2 / HEAT_RAY_COOLDOWN;
+    const spongeNominal = 2 / SPONGE_COOLDOWN;
+    await runCase(group, "RS-03 empty heat ray trickles on sand", async () => {
+      const { shots } = await holdFire(1, 0);
+      assert.ok(shots >= 1 && shots <= 8, `${shots} shots in 2 s`);
+      return `${shots} shots`;
+    });
+    await runCase(group, "RS-03 empty sponge fires nothing", async () => {
+      const { shots } = await holdFire(2, 0);
+      assert.equal(shots, 0, `${shots} bursts in 2 s`);
+      return `${shots} bursts`;
+    });
+    await runCase(group, "RS-03 full-charge cadence unchanged", async () => {
+      const heat = await holdFire(1, 100);
       assert.ok(
-        result.kills >= 1,
-        `kill not scored: ${JSON.stringify(result)}`,
+        heat.shots >= heatNominal * 0.5 && heat.shots <= heatNominal + 1,
+        `heat ray fired ${heat.shots} (nominal ${Math.round(heatNominal)})`,
       );
-      assert.equal(
-        result.shownScore,
-        String(result.score),
-        JSON.stringify(result),
+      const sponge = await holdFire(2, 100);
+      assert.ok(
+        sponge.shots >= 3 && sponge.shots <= spongeNominal + 1,
+        `sponge fired ${sponge.shots} (nominal ${Math.round(spongeNominal)})`,
       );
-      assert.equal(
-        result.shownKills,
-        String(result.kills),
-        JSON.stringify(result),
+      return `heat ray ${heat.shots}, sponge ${sponge.shots}`;
+    });
+    await runCase(group, "heat ray beam shows while firing", async () => {
+      const { beamSeen } = await holdFire(1, 100);
+      assert.ok(beamSeen, "beam never became visible");
+      const inScene = await page.evaluate(
+        () =>
+          window.__game.scene.getObjectByName("Heat Ray beam")?.parent ===
+          window.__game.scene,
       );
-      return JSON.stringify(result);
-    },
-  );
-  await startRun(page, "#againBtn");
+      assert.ok(inScene, "beam left the scene");
+    });
 
-  // RS-07: a jump buffered just before death must not fire on the next run.
-  await runCase(
-    group,
-    "RS-07 buffered jump does not survive a restart",
-    async () => {
-      await page.evaluate(() => {
-        const kit = window.__e2e;
-        for (let i = 0; i < 3; i++) {
-          window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" }));
-          window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" }));
-        }
-        kit.controller.hurtPlayer(1000);
-        kit.maxY = 0;
-        kit.maxJumps = 0;
-        kit.jumpTimer = setInterval(() => {
-          if (window.__game.state.mode !== "play") return;
-          kit.maxY = Math.max(kit.maxY, window.__game.player.pos.y);
-          kit.maxJumps = Math.max(kit.maxJumps, window.__game.player.jumps);
-        }, 5);
-      });
-      await page.waitForFunction(() => window.__game.state.mode === "end");
-      await startRun(page, "#againBtn");
-      await waitGameTime(page, 0.6);
-      const result = await page.evaluate(() => {
-        clearInterval(window.__e2e.jumpTimer);
-        return { maxY: window.__e2e.maxY, maxJumps: window.__e2e.maxJumps };
-      });
-      assert.equal(result.maxJumps, 0, JSON.stringify(result));
-      assert.equal(result.maxY, 0, JSON.stringify(result));
-      return JSON.stringify(result);
-    },
-  );
+    // RS-12: during sustained hip fire the barrel points at the crosshair, not above it.
+    await runCase(
+      group,
+      "RS-12 hip-fire barrel points at the crosshair",
+      async () => {
+        await page.evaluate(() => {
+          const kit = window.__e2e;
+          kit.fixture();
+          kit.core.state.water = 100;
+          kit.hud.setWeapon(1);
+        });
+        await mouseHold(page, true);
+        await waitGameTime(page, 1);
+        const degrees = await page.evaluate(async () => {
+          const THREE = await import("three");
+          const { sight } = window.__game.vmScene.userData.viewmodel;
+          sight.updateWorldMatrix(true, false);
+          const origin = sight.getWorldPosition(new THREE.Vector3());
+          const bore = new THREE.Vector3(0, 0, -1).applyQuaternion(
+            sight.getWorldQuaternion(new THREE.Quaternion()),
+          );
+          const toCrosshair = new THREE.Vector3(0, 0, -18)
+            .sub(origin)
+            .normalize();
+          return THREE.MathUtils.radToDeg(bore.angleTo(toCrosshair));
+        });
+        await mouseHold(page, false);
+        assert.ok(
+          degrees < 4,
+          `barrel is ${degrees.toFixed(1)}° off the crosshair`,
+        );
+        return `${degrees.toFixed(2)}° off`;
+      },
+    );
+  });
 
-  // RS-05: the wave banner outlives an older banner's hide timer.
-  const bannerVisibleMs = (title) =>
-    page.evaluate((title) => {
-      const log = window.__e2e.banner;
-      const shown = log.findIndex(
-        (entry) => entry.title.startsWith(title) && !entry.hidden,
-      );
-      if (shown < 0) throw new Error(`banner ${title} never shown`);
-      const hidden = log.findIndex((entry, i) => i > shown && entry.hidden);
-      if (hidden < 0) throw new Error(`banner ${title} never hidden`);
-      return Math.round(log[hidden].t - log[shown].t);
-    }, title);
-  await runCase(
-    group,
-    "RS-05 WAVE 2 banner stays 2.2 s after a clear",
-    async () => {
-      await page.evaluate(() => {
-        const kit = window.__e2e;
-        kit.core.state.hp = 1000000;
-        kit.banner.length = 0;
-        kit.waves.spawnWave(1);
-        window.__game.killAll();
-      });
-      await page.waitForFunction(() => window.__game.state.wave === 2, null, {
-        timeout: 30000,
-      });
-      await page.waitForTimeout(3200);
-      const ms = await bannerVisibleMs("WAVE 2");
-      assert.ok(ms >= 2150 && ms <= 3500, `WAVE 2 visible for ${ms} ms`);
-      return `${ms} ms`;
-    },
-  );
-  await runCase(
-    group,
-    "RS-05 restart mid-banner keeps the new WAVE 1",
-    async () => {
-      await page.evaluate(() => window.__e2e.fixture());
-      await dieAndRestart(page);
-      await page.waitForTimeout(700);
-      await page.evaluate(() => {
-        window.__e2e.banner.length = 0;
-      });
-      await dieAndRestart(page);
-      await page.waitForTimeout(3200);
-      const ms = await bannerVisibleMs("WAVE 1");
-      assert.ok(ms >= 2150 && ms <= 3500, `WAVE 1 visible for ${ms} ms`);
-      return `${ms} ms`;
-    },
-  );
+const desktopRestarts = (browser) =>
+  withDesktopPage(browser, async (page) => {
+    const group = "desktop";
+    await startRun(page, "#playBtn");
+    await page.evaluate(() => window.__e2e.fixture());
 
-  // The shared page closes first: under software WebGL its running game
-  // starves the audio case's own page, which then never enables Play.
-  await context.close();
+    // RS-04: a shot that kills a Gusher inside its blast radius also kills the player.
+    await runCase(
+      group,
+      "RS-04 lethal Gusher kill reaches the end screen",
+      async () => {
+        await page.evaluate(() => {
+          const kit = window.__e2e;
+          kit.fixture();
+          Object.assign(kit.core.state, {
+            hp: 10,
+            score: 0,
+            kills: 0,
+            combo: 0,
+          });
+          const gusher = kit.monsters.addEnemy(4, 0, -8);
+          gusher.hp = 0.1;
+          gusher.speed = 0;
+          gusher.abCd = 99;
+          gusher.state = "chase";
+          window.__game.aimAt(
+            gusher.pos.clone().add({ x: 0, y: 0.7 * gusher.s, z: 0 }),
+          );
+        });
+        await mouseHold(page, true);
+        await page.waitForFunction(
+          () => window.__game.state.mode === "end",
+          null,
+          {
+            timeout: 15000,
+          },
+        );
+        await mouseHold(page, false);
+        const result = await page.evaluate(() => ({
+          score: window.__game.state.score,
+          kills: window.__game.state.kills,
+          shownScore: document.getElementById("stScore").textContent,
+          shownKills: document.getElementById("stKills").textContent,
+        }));
+        assert.ok(
+          result.kills >= 1,
+          `kill not scored: ${JSON.stringify(result)}`,
+        );
+        assert.equal(
+          result.shownScore,
+          String(result.score),
+          JSON.stringify(result),
+        );
+        assert.equal(
+          result.shownKills,
+          String(result.kills),
+          JSON.stringify(result),
+        );
+        return JSON.stringify(result);
+      },
+    );
+    await startRun(page, "#againBtn");
 
+    // RS-07: a jump buffered just before death must not fire on the next run.
+    await runCase(
+      group,
+      "RS-07 buffered jump does not survive a restart",
+      async () => {
+        await page.evaluate(() => {
+          const kit = window.__e2e;
+          for (let i = 0; i < 3; i++) {
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { code: "Space" }),
+            );
+            window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" }));
+          }
+          kit.controller.hurtPlayer(1000);
+          kit.maxY = 0;
+          kit.maxJumps = 0;
+          kit.jumpTimer = setInterval(() => {
+            if (window.__game.state.mode !== "play") return;
+            kit.maxY = Math.max(kit.maxY, window.__game.player.pos.y);
+            kit.maxJumps = Math.max(kit.maxJumps, window.__game.player.jumps);
+          }, 5);
+        });
+        await page.waitForFunction(() => window.__game.state.mode === "end");
+        await startRun(page, "#againBtn");
+        await waitGameTime(page, 0.6);
+        const result = await page.evaluate(() => {
+          clearInterval(window.__e2e.jumpTimer);
+          return { maxY: window.__e2e.maxY, maxJumps: window.__e2e.maxJumps };
+        });
+        assert.equal(result.maxJumps, 0, JSON.stringify(result));
+        assert.equal(result.maxY, 0, JSON.stringify(result));
+        return JSON.stringify(result);
+      },
+    );
+
+    // RS-05: the wave banner outlives an older banner's hide timer.
+    const bannerVisibleMs = (title) =>
+      page.evaluate((title) => {
+        const log = window.__e2e.banner;
+        const shown = log.findIndex(
+          (entry) => entry.title.startsWith(title) && !entry.hidden,
+        );
+        if (shown < 0) throw new Error(`banner ${title} never shown`);
+        const hidden = log.findIndex((entry, i) => i > shown && entry.hidden);
+        if (hidden < 0) throw new Error(`banner ${title} never hidden`);
+        return Math.round(log[hidden].t - log[shown].t);
+      }, title);
+    await runCase(
+      group,
+      "RS-05 WAVE 2 banner stays 2.2 s after a clear",
+      async () => {
+        await page.evaluate(() => {
+          const kit = window.__e2e;
+          kit.core.state.hp = 1000000;
+          kit.banner.length = 0;
+          kit.waves.spawnWave(1);
+          window.__game.killAll();
+        });
+        await page.waitForFunction(() => window.__game.state.wave === 2, null, {
+          timeout: 30000,
+        });
+        await page.waitForTimeout(3200);
+        const ms = await bannerVisibleMs("WAVE 2");
+        assert.ok(ms >= 2150 && ms <= 3500, `WAVE 2 visible for ${ms} ms`);
+        return `${ms} ms`;
+      },
+    );
+    await runCase(
+      group,
+      "RS-05 restart mid-banner keeps the new WAVE 1",
+      async () => {
+        await page.evaluate(() => window.__e2e.fixture());
+        await dieAndRestart(page);
+        await page.waitForTimeout(700);
+        await page.evaluate(() => {
+          window.__e2e.banner.length = 0;
+        });
+        await dieAndRestart(page);
+        await page.waitForTimeout(3200);
+        const ms = await bannerVisibleMs("WAVE 1");
+        assert.ok(ms >= 2150 && ms <= 3500, `WAVE 1 visible for ${ms} ms`);
+        return `${ms} ms`;
+      },
+    );
+  });
+
+const desktopAudio = async (browser) => {
+  const group = "desktop";
   // Recorded audio, in its own context after the shared page has closed.
   // With clip requests stalled, every sound call must play
   // the synth fallback without error; once released, every recorded sound
@@ -822,101 +859,107 @@ const mobileGroup = async (browser) => {
     hasTouch: true,
     isMobile: true,
   });
-  const page = await context.newPage();
-  watch(page, group);
-  await page.addInitScript(seedScript);
-  await bootPage(page, true);
-  await page.locator("#playBtn").tap({ timeout: 30000 });
-  await page.waitForFunction(() => window.__game.state.mode === "play");
+  try {
+    const page = await context.newPage();
+    watch(page, group);
+    await page.addInitScript(seedScript);
+    await bootPage(page, true);
+    await page.locator("#playBtn").tap({ timeout: 30000 });
+    await page.waitForFunction(() => window.__game.state.mode === "play");
 
-  // RS-02: tapping a weapon slot selects it, without looking around or firing.
-  await runCase(group, "RS-02 tapping the Sponge slot selects it", async () => {
-    await page.evaluate(() => window.__e2e.fixture());
-    const slot = (index) =>
-      page.evaluate((index) => {
-        const slots = document.querySelectorAll(".slot");
-        const box = slots[index].getBoundingClientRect();
-        const x = box.x + box.width / 2;
-        const y = box.y + box.height / 2;
-        const top = document.elementFromPoint(x, y)?.closest(".slot");
-        return { x, y, onTop: top === slots[index] };
-      }, index);
-    const snapshot = () =>
-      page.evaluate(() => {
-        const { state, look } = window.__e2e.core;
-        return {
-          weapon: state.weapon,
-          yaw: look.yaw,
-          pitch: look.pitch,
-          shots: window.__e2e.shots.length,
-          on: [...document.querySelectorAll(".slot")].map((el) =>
-            el.classList.contains("on"),
-          ),
-          ammo: document.getElementById("ammo").textContent,
-        };
-      });
-    const heat = await slot(0);
-    const sponge = await slot(1);
-    assert.ok(sponge.onTop, "Sponge slot is covered by another element");
-    const before = await snapshot();
-    await page.touchscreen.tap(sponge.x, sponge.y);
-    await waitGameTime(page, 0.3);
-    const afterSponge = await snapshot();
-    assert.equal(afterSponge.weapon, 2, "Sponge not selected");
-    assert.deepEqual(afterSponge.on, [false, true]);
-    assert.match(afterSponge.ammo, /SPONGE/);
-    await page.touchscreen.tap(heat.x, heat.y);
-    await waitGameTime(page, 0.3);
-    const afterHeat = await snapshot();
-    assert.equal(afterHeat.weapon, 1, "Heat Ray not selected again");
-    for (const after of [afterSponge, afterHeat]) {
-      assert.equal(after.yaw, before.yaw, "tap moved the camera");
-      assert.equal(after.pitch, before.pitch, "tap moved the camera");
-      assert.equal(after.shots, before.shots, "tap fired the weapon");
-    }
-  });
+    // RS-02: tapping a weapon slot selects it, without looking around or firing.
+    await runCase(
+      group,
+      "RS-02 tapping the Sponge slot selects it",
+      async () => {
+        await page.evaluate(() => window.__e2e.fixture());
+        const slot = (index) =>
+          page.evaluate((index) => {
+            const slots = document.querySelectorAll(".slot");
+            const box = slots[index].getBoundingClientRect();
+            const x = box.x + box.width / 2;
+            const y = box.y + box.height / 2;
+            const top = document.elementFromPoint(x, y)?.closest(".slot");
+            return { x, y, onTop: top === slots[index] };
+          }, index);
+        const snapshot = () =>
+          page.evaluate(() => {
+            const { state, look } = window.__e2e.core;
+            return {
+              weapon: state.weapon,
+              yaw: look.yaw,
+              pitch: look.pitch,
+              shots: window.__e2e.shots.length,
+              on: [...document.querySelectorAll(".slot")].map((el) =>
+                el.classList.contains("on"),
+              ),
+              ammo: document.getElementById("ammo").textContent,
+            };
+          });
+        const heat = await slot(0);
+        const sponge = await slot(1);
+        assert.ok(sponge.onTop, "Sponge slot is covered by another element");
+        const before = await snapshot();
+        await page.touchscreen.tap(sponge.x, sponge.y);
+        await waitGameTime(page, 0.3);
+        const afterSponge = await snapshot();
+        assert.equal(afterSponge.weapon, 2, "Sponge not selected");
+        assert.deepEqual(afterSponge.on, [false, true]);
+        assert.match(afterSponge.ammo, /SPONGE/);
+        await page.touchscreen.tap(heat.x, heat.y);
+        await waitGameTime(page, 0.3);
+        const afterHeat = await snapshot();
+        assert.equal(afterHeat.weapon, 1, "Heat Ray not selected again");
+        for (const after of [afterSponge, afterHeat]) {
+          assert.equal(after.yaw, before.yaw, "tap moved the camera");
+          assert.equal(after.pitch, before.pitch, "tap moved the camera");
+          assert.equal(after.shots, before.shots, "tap fired the weapon");
+        }
+      },
+    );
 
-  // RS-06: a look finger still down across a restart must not block new gestures.
-  await runCase(
-    group,
-    "RS-06 new look gesture works after a restart",
-    async () => {
-      await page.evaluate(() => window.__e2e.fixture());
-      const cdp = await context.newCDPSession(page);
-      const touch = (type, points) =>
-        cdp.send("Input.dispatchTouchEvent", {
-          type,
-          touchPoints: points.map(([id, x, y]) => ({ id, x, y })),
-        });
-      await touch("touchStart", [[31, 700, 300]]);
-      await touch("touchMove", [[31, 740, 310]]);
-      await page.evaluate(() => window.__e2e.controller.hurtPlayer(1000));
-      await page.waitForFunction(() => window.__game.state.mode === "end");
-      // The old finger stays down while the player restarts with a click.
-      await page.locator("#againBtn").click();
-      await page.waitForFunction(() => window.__game.state.mode === "play");
-      const look = () => page.evaluate(() => ({ ...window.__e2e.core.look }));
-      const before = await look();
-      await touch("touchStart", [
-        [31, 740, 310],
-        [32, 700, 300],
-      ]);
-      await touch("touchMove", [
-        [31, 740, 310],
-        [32, 780, 340],
-      ]);
-      await waitGameTime(page, 0.3);
-      const after = await look();
-      await touch("touchEnd", []);
-      assert.ok(
-        after.yaw !== before.yaw || after.pitch !== before.pitch,
-        `camera did not move: ${JSON.stringify({ before, after })}`,
-      );
-      return JSON.stringify({ before, after });
-    },
-  );
-
-  await context.close();
+    // RS-06: a look finger still down across a restart must not block new gestures.
+    await runCase(
+      group,
+      "RS-06 new look gesture works after a restart",
+      async () => {
+        await page.evaluate(() => window.__e2e.fixture());
+        const cdp = await context.newCDPSession(page);
+        const touch = (type, points) =>
+          cdp.send("Input.dispatchTouchEvent", {
+            type,
+            touchPoints: points.map(([id, x, y]) => ({ id, x, y })),
+          });
+        await touch("touchStart", [[31, 700, 300]]);
+        await touch("touchMove", [[31, 740, 310]]);
+        await page.evaluate(() => window.__e2e.controller.hurtPlayer(1000));
+        await page.waitForFunction(() => window.__game.state.mode === "end");
+        // The old finger stays down while the player restarts with a click.
+        await page.locator("#againBtn").click();
+        await page.waitForFunction(() => window.__game.state.mode === "play");
+        const look = () => page.evaluate(() => ({ ...window.__e2e.core.look }));
+        const before = await look();
+        await touch("touchStart", [
+          [31, 740, 310],
+          [32, 700, 300],
+        ]);
+        await touch("touchMove", [
+          [31, 740, 310],
+          [32, 780, 340],
+        ]);
+        await waitGameTime(page, 0.3);
+        const after = await look();
+        await touch("touchEnd", []);
+        assert.ok(
+          after.yaw !== before.yaw || after.pitch !== before.pitch,
+          `camera did not move: ${JSON.stringify({ before, after })}`,
+        );
+        return JSON.stringify({ before, after });
+      },
+    );
+  } finally {
+    await context.close();
+  }
 };
 
 // Startup asset failures. Each case boots a fresh page and aborts requests for the sand
@@ -929,16 +972,21 @@ const startupGroup = async (browser) => {
     const context = await browser.newContext({
       viewport: { width: 1000, height: 700 },
     });
-    const page = await context.newPage();
-    const pageErrors = [];
-    page.on("pageerror", (error) => pageErrors.push(error.message));
-    let requests = 0;
-    await page.route(`**${sand}`, (route) => {
-      requests++;
-      return shouldAbort(requests) ? route.abort("failed") : route.continue();
-    });
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-    return { context, page, pageErrors, requests: () => requests };
+    try {
+      const page = await context.newPage();
+      const pageErrors = [];
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      let requests = 0;
+      await page.route(`**${sand}`, (route) => {
+        requests++;
+        return shouldAbort(requests) ? route.abort("failed") : route.continue();
+      });
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+      return { context, page, pageErrors, requests: () => requests };
+    } catch (error) {
+      await context.close();
+      throw error;
+    }
   };
   const status = (page) =>
     page.evaluate(() => ({
@@ -1017,59 +1065,133 @@ const printTable = () => {
   }
 };
 
-let browser;
-let deadline;
-await mkdir("test-results", { recursive: true });
-try {
-  browser = await chromium.launch({
-    channel: "chromium",
-    headless: true,
-    args: [...args, "--autoplay-policy=no-user-gesture-required"],
-  });
-  // Hard stop includes slow GPU startup; finally still closes the sole browser.
-  await Promise.race([
-    (async () => {
-      await desktopGroup(browser);
-      await mobileGroup(browser);
-      await startupGroup(browser);
-    })(),
-    new Promise((_, reject) => {
-      deadline = setTimeout(
-        () => reject(new Error("E2E exceeded 600 seconds")),
-        600000,
+const blocks = [
+  { name: "desktop-loading", run: desktopLoading },
+  { name: "desktop-effects-creatures-slam", run: desktopEffectsCreaturesSlam },
+  { name: "desktop-weapons", run: desktopWeapons },
+  { name: "desktop-restarts", run: desktopRestarts },
+  { name: "desktop-audio", run: desktopAudio },
+  { name: "mobile", run: mobileGroup },
+  { name: "startup", run: startupGroup },
+];
+const weights = JSON.parse(
+  await readFile(new URL("./e2e-timings.json", import.meta.url), "utf8"),
+);
+const known = Object.values(weights)
+  .filter((ms) => Number.isFinite(ms) && ms > 0)
+  .sort((a, b) => a - b);
+const middle = Math.floor(known.length / 2);
+const median = known.length
+  ? known.length % 2
+    ? known[middle]
+    : (known[middle - 1] + known[middle]) / 2
+  : 18000;
+const weight = (block) =>
+  Number.isFinite(weights[block.name]) && weights[block.name] > 0
+    ? weights[block.name]
+    : median;
+const shard = process.env.E2E_SHARD;
+assert.ok(
+  !shard || /^[1-9]\d*\/[1-9]\d*$/.test(shard),
+  "E2E_SHARD must be i/n (1 <= i <= n)",
+);
+const [shardIndex, shardCount] = shard ? shard.split("/").map(Number) : [1, 1];
+assert.ok(
+  Number.isSafeInteger(shardIndex) &&
+    Number.isSafeInteger(shardCount) &&
+    shardIndex <= shardCount,
+  "E2E_SHARD must be i/n (1 <= i <= n)",
+);
+const shards = Array.from({ length: shardCount }, () => ({
+  blocks: [],
+  ms: 0,
+}));
+// Stable sort preserves block order for equal weights; indexOf breaks shard ties.
+for (const block of [...blocks].sort((a, b) => weight(b) - weight(a))) {
+  const lightest = shards.reduce((a, b) => (b.ms < a.ms ? b : a));
+  lightest.blocks.push(block);
+  lightest.ms += weight(block);
+}
+for (const assigned of shards)
+  assigned.blocks.sort((a, b) => blocks.indexOf(a) - blocks.indexOf(b));
+if (process.argv.includes("--list")) {
+  for (const [index, assigned] of shards.entries()) {
+    console.log(`${index + 1}/${shardCount}: ${assigned.ms} ms`);
+    for (const block of assigned.blocks)
+      console.log(`  ${block.name}: ${weight(block)} ms`);
+  }
+} else {
+  const selected = shard ? shards[shardIndex - 1].blocks : blocks;
+  report.shard = shard || null;
+  server = process.env.E2E_URL ? null : await startServer({ port: 0 });
+  const baseUrl = process.env.E2E_URL || `${server.url}/index.html`;
+  url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}q=${quality}`;
+  report.url = url;
+  let browser;
+  let deadline;
+  await mkdir("test-results", { recursive: true });
+  try {
+    browser = await chromium.launch({
+      channel: "chromium",
+      headless: true,
+      args: [...args, "--autoplay-policy=no-user-gesture-required"],
+    });
+    // Hard stop includes slow GPU startup; finally still closes the sole browser.
+    await Promise.race([
+      (async () => {
+        for (const block of selected) {
+          currentBlock = block.name;
+          const blockStarted = performance.now();
+          try {
+            await block.run(browser);
+          } finally {
+            report.blocks.push({
+              name: block.name,
+              ms: Math.round(performance.now() - blockStarted),
+            });
+          }
+        }
+      })(),
+      new Promise((_, reject) => {
+        deadline = setTimeout(
+          () => reject(new Error("E2E exceeded 600 seconds")),
+          600000,
+        );
+      }),
+    ]);
+  } catch (error) {
+    report.error = error.stack;
+    process.exitCode = 1;
+  } finally {
+    clearTimeout(deadline);
+    if (browser) await browser.close();
+    await server?.close();
+    const clean =
+      report.pageErrors.length +
+        report.consoleErrors.length +
+        report.failedResponses.length +
+        report.failedRequests.length ===
+      0;
+    const failed = report.cases.filter((entry) => entry.result === "fail");
+    report.result =
+      !report.error && clean && failed.length === 0 ? "pass" : "fail";
+    if (report.result === "fail") process.exitCode = 1;
+    report.totalMs = Math.round(performance.now() - started);
+    printTable();
+    if (!clean) {
+      console.log(
+        `\nPage errors: ${JSON.stringify(report.pageErrors)}\nConsole errors: ${JSON.stringify(report.consoleErrors)}\nFailed responses: ${JSON.stringify(report.failedResponses)}\nFailed requests: ${JSON.stringify(report.failedRequests)}`,
       );
-    }),
-  ]);
-} catch (error) {
-  report.error = error.stack;
-  process.exitCode = 1;
-} finally {
-  clearTimeout(deadline);
-  if (browser) await browser.close();
-  await server?.close();
-  const clean =
-    report.pageErrors.length +
-      report.consoleErrors.length +
-      report.failedResponses.length +
-      report.failedRequests.length ===
-    0;
-  const failed = report.cases.filter((entry) => entry.result === "fail");
-  report.result =
-    !report.error && clean && failed.length === 0 ? "pass" : "fail";
-  if (report.result === "fail") process.exitCode = 1;
-  report.totalMs = Math.round(performance.now() - started);
-  printTable();
-  if (!clean) {
+    }
+    if (report.error) console.log(`\n${report.error}`);
     console.log(
-      `\nPage errors: ${JSON.stringify(report.pageErrors)}\nConsole errors: ${JSON.stringify(report.consoleErrors)}\nFailed responses: ${JSON.stringify(report.failedResponses)}\nFailed requests: ${JSON.stringify(report.failedRequests)}`,
+      `\n${report.result.toUpperCase()}: ${report.cases.length - failed.length}/${report.cases.length} cases in ${report.totalMs} ms (${backend}, q=${quality})`,
+    );
+    await writeFile(
+      shard
+        ? `test-results/e2e-shard-${shardIndex}.json`
+        : "test-results/e2e.json",
+      JSON.stringify(report, null, 2) + "\n",
     );
   }
-  if (report.error) console.log(`\n${report.error}`);
-  console.log(
-    `\n${report.result.toUpperCase()}: ${report.cases.length - failed.length}/${report.cases.length} cases in ${report.totalMs} ms (${backend}, q=${quality})`,
-  );
-  await writeFile(
-    "test-results/e2e.json",
-    JSON.stringify(report, null, 2) + "\n",
-  );
 }

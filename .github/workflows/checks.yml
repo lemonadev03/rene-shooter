@@ -9,7 +9,7 @@ concurrency:
   group: checks-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  checks:
+  static:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -24,18 +24,50 @@ jobs:
       - run: npm run check
       - run: npm run typecheck
       - run: npm test
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Smoke test with software WebGL
         env:
           SMOKE_GPU: swiftshader
         run: npm run smoke
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: smoke-results
+          path: test-results/
+          if-no-files-found: ignore
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - name: Gameplay regression suite with software WebGL
         env:
           E2E_GPU: swiftshader
+          E2E_SHARD: ${{ matrix.shard }}/3
         run: npm run e2e
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: browser-test-results
+          name: e2e-results-${{ matrix.shard }}
           path: test-results/
           if-no-files-found: ignore
