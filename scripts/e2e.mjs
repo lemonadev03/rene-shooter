@@ -972,15 +972,15 @@ const startupGroup = async (browser) => {
     const context = await browser.newContext({
       viewport: { width: 1000, height: 700 },
     });
-    const page = await context.newPage();
-    const pageErrors = [];
-    page.on("pageerror", (error) => pageErrors.push(error.message));
-    let requests = 0;
-    await page.route(`**${sand}`, (route) => {
-      requests++;
-      return shouldAbort(requests) ? route.abort("failed") : route.continue();
-    });
     try {
+      const page = await context.newPage();
+      const pageErrors = [];
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      let requests = 0;
+      await page.route(`**${sand}`, (route) => {
+        requests++;
+        return shouldAbort(requests) ? route.abort("failed") : route.continue();
+      });
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
       return { context, page, pageErrors, requests: () => requests };
     } catch (error) {
