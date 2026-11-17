@@ -15,7 +15,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test \"test/*.test.mjs\"",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "e2e:timings": "node scripts/e2e-timings.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
